@@ -1,8 +1,9 @@
 specVersion: v0.1.0
 package:
   name: polymarket_orderbook_substreams
-  version: v0.1.0
+  version: v0.1.1
   url: https://github.com/PaulieB14/polymarket-orderbook-substreams
+  image: ./download.png
   doc: |
     # Polymarket Orderbook Substreams
     
