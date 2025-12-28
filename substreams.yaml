@@ -1,0 +1,138 @@
+specVersion: v0.1.0
+package:
+  name: 'polymarket_orderbook_substreams'
+  version: v0.1.0
+  url: https://github.com/PaulieB14/polymarket-orderbook-substreams
+  doc: |
+    Polymarket Orderbook Substreams - Real-time orderbook analytics for Polymarket prediction markets
+    
+    This substreams package provides comprehensive orderbook tracking including:
+    - Order fill events and matching
+    - Market-level orderbook statistics  
+    - Trader analytics and profiling
+    - Global platform metrics
+    - Real-time price and volume data
+
+protobuf:
+  files:
+    - orderbook.proto
+  importPaths:
+    - ./proto
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/polymarket_orderbook_substreams.wasm
+
+modules:
+  - name: map_ctf_exchange_order_filled
+    kind: map
+    initialBlock: 33605403
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrderFilledEvents
+    blockFilter:
+      module: index_events
+      query:
+        string: '&{evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e}'
+
+  - name: map_neg_risk_exchange_order_filled  
+    kind: map
+    initialBlock: 50505492
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrderFilledEvents
+    blockFilter:
+      module: index_events
+      query:
+        string: '&{evt_addr:0xC5d563A36AE78145C45a50134d48A1215220f80a}'
+
+  - name: map_ctf_exchange_orders_matched
+    kind: map
+    initialBlock: 33605403
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
+    blockFilter:
+      module: index_events
+      query:
+        string: '&{evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e}'
+
+  - name: map_neg_risk_exchange_orders_matched
+    kind: map
+    initialBlock: 50505492
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
+    blockFilter:
+      module: index_events
+      query:
+        string: '&{evt_addr:0xC5d563A36AE78145C45a50134d48A1215220f80a}'
+
+  - name: map_market_orderbooks
+    kind: map
+    initialBlock: 33605403
+    inputs:
+      - map: map_ctf_exchange_order_filled
+      - map: map_neg_risk_exchange_order_filled
+      - map: map_ctf_exchange_orders_matched
+      - map: map_neg_risk_exchange_orders_matched
+    output:
+      type: proto:polymarket.orderbook.v1.MarketOrderbooks
+
+  - name: map_trader_accounts
+    kind: map
+    initialBlock: 33605403
+    inputs:
+      - map: map_ctf_exchange_order_filled
+      - map: map_neg_risk_exchange_order_filled
+    output:
+      type: proto:polymarket.orderbook.v1.Accounts
+
+  - name: map_global_orderbook_stats
+    kind: map
+    initialBlock: 33605403
+    inputs:
+      - map: map_market_orderbooks
+      - map: map_trader_accounts
+    output:
+      type: proto:polymarket.orderbook.v1.GlobalOrderbookStats
+
+  - name: map_orderbook_analytics
+    kind: map
+    initialBlock: 33605403
+    inputs:
+      - map: map_market_orderbooks
+      - map: map_trader_accounts
+      - map: map_global_orderbook_stats
+    output:
+      type: proto:polymarket.orderbook.v1.OrderbookAnalytics
+
+  # Import common Ethereum modules
+  - name: index_events
+    kind: index
+    inputs:
+      - map: all_events
+    output:
+      type: proto:sf.substreams.index.v1.Keys
+
+  - name: all_events
+    kind: map
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:sf.substreams.ethereum.v1.Events
+
+network: polygon
+
+params:
+  # CTF Exchange contract
+  ctf_exchange: "0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e"
+  # Neg Risk CTF Exchange contract  
+  neg_risk_exchange: "0xC5d563A36AE78145C45a50134d48A1215220f80a"
+  # USDC collateral token
+  usdc_token: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"

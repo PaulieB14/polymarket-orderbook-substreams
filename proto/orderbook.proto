@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package polymarket.orderbook.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Individual order fill event
+message OrderFilledEvent {
+  string id = 1;
+  string transaction_hash = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string order_hash = 4;
+  string maker = 5;
+  string taker = 6;
+  string maker_asset_id = 7;
+  string taker_asset_id = 8;
+  string maker_amount_filled = 9;
+  string taker_amount_filled = 10;
+  string fee = 11;
+  uint64 block_number = 12;
+  string side = 13;
+  string price = 14;
+}
+
+message OrdersMatchedEvent {
+  string id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string maker_asset_id = 3;
+  string taker_asset_id = 4;
+  string maker_amount_filled = 5;
+  string taker_amount_filled = 6;
+  uint64 block_number = 7;
+}
+
+message MarketOrderbook {
+  string id = 1;
+  string condition_id = 2;
+  uint64 trades_quantity = 3;
+  uint64 buys_quantity = 4;
+  uint64 sells_quantity = 5;
+  string collateral_volume = 6;
+  string scaled_collateral_volume = 7;
+  string average_trade_size = 8;
+  string total_fees = 9;
+  uint64 last_active_day = 10;
+}
+
+message Account {
+  string id = 1;
+  uint64 trades_quantity = 2;
+  string total_volume = 3;
+  string total_fees = 4;
+  google.protobuf.Timestamp first_trade = 5;
+  google.protobuf.Timestamp last_trade = 6;
+  bool is_active = 7;
+  string trader_type = 8;
+}
+
+message GlobalOrderbookStats {
+  string id = 1;
+  uint64 trades_quantity = 2;
+  uint64 buys_quantity = 3;
+  uint64 sells_quantity = 4;
+  string collateral_volume = 5;
+  string scaled_collateral_volume = 6;
+  string total_fees = 7;
+  string average_trade_size = 8;
+  uint64 unique_traders = 9;
+  uint64 active_markets = 10;
+  google.protobuf.Timestamp last_updated = 11;
+}
+
+message OrderFilledEvents {
+  repeated OrderFilledEvent events = 1;
+  uint64 block_number = 2;
+  string block_hash = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message OrdersMatchedEvents {
+  repeated OrdersMatchedEvent events = 1;
+  uint64 block_number = 2;
+  string block_hash = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message MarketOrderbooks {
+  repeated MarketOrderbook orderbooks = 1;
+  uint64 block_number = 2;
+  string block_hash = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message Accounts {
+  repeated Account accounts = 1;
+  uint64 block_number = 2;
+  string block_hash = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message OrderbookAnalytics {
+  repeated MarketOrderbook market_orderbooks = 1;
+  GlobalOrderbookStats global_stats = 2;
+  repeated Account top_traders = 3;
+  uint64 block_number = 4;
+  string block_hash = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}

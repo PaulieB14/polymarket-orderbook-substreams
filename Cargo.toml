@@ -1,0 +1,19 @@
+[package]
+name = "polymarket-orderbook-substreams"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "polymarket_orderbook_substreams"
+crate-type = ["cdylib"]
+
+[dependencies]
+substreams = "0.5"
+substreams-ethereum = "0.9"
+hex-literal = "0.4"
+prost = "0.12"
+prost-types = "0.12"
+bigdecimal = "0.4"
+
+[build-dependencies]
+substreams-ethereum = "0.9"
