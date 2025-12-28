@@ -1,13 +1,14 @@
 specVersion: v0.1.0
 package:
-  name: 'polymarket_orderbook_substreams'
+  name: polymarket_orderbook_substreams
   version: v0.1.0
   url: https://github.com/PaulieB14/polymarket-orderbook-substreams
-  image: ./polymarket-logo.png
+
+network: polygon
 
 protobuf:
   files:
-    - orderbook.proto
+    - polymarket/orderbook/v1/orderbook.proto
   importPaths:
     - ./proto
 
@@ -17,18 +18,17 @@ binaries:
     file: ./target/wasm32-unknown-unknown/release/polymarket_orderbook_substreams.wasm
 
 modules:
-  # Raw event extraction modules - optimized for parallel execution
   - name: map_ctf_exchange_order_filled
     kind: map
-    initialBlock: 33605403
+    initialBlock: 57000000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:polymarket.orderbook.v1.OrderFilledEvents
 
-  - name: map_neg_risk_exchange_order_filled  
+  - name: map_neg_risk_exchange_order_filled
     kind: map
-    initialBlock: 50505492
+    initialBlock: 57000000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -36,7 +36,7 @@ modules:
 
   - name: map_ctf_exchange_orders_matched
     kind: map
-    initialBlock: 33605403
+    initialBlock: 57000000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -44,76 +44,8 @@ modules:
 
   - name: map_neg_risk_exchange_orders_matched
     kind: map
-    initialBlock: 50505492
+    initialBlock: 57000000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
-
-  # Foundational stores for efficient state management
-  - name: store_markets
-    kind: store
-    initialBlock: 33605403
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.MarketOrderbook
-    inputs:
-      - map: map_ctf_exchange_order_filled
-      - map: map_neg_risk_exchange_order_filled
-      - map: map_ctf_exchange_orders_matched
-      - map: map_neg_risk_exchange_orders_matched
-
-  - name: store_traders
-    kind: store
-    initialBlock: 33605403
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.Account
-    inputs:
-      - map: map_ctf_exchange_order_filled
-      - map: map_neg_risk_exchange_order_filled
-
-  - name: store_global_stats
-    kind: store
-    initialBlock: 33605403
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.GlobalOrderbookStats
-    inputs:
-      - store: store_markets
-      - store: store_traders
-
-  # Aggregated outputs optimized for parallel execution
-  - name: map_market_orderbooks
-    kind: map
-    initialBlock: 33605403
-    inputs:
-      - store: store_markets
-    output:
-      type: proto:polymarket.orderbook.v1.MarketOrderbooks
-
-  - name: map_trader_accounts
-    kind: map
-    initialBlock: 33605403
-    inputs:
-      - store: store_traders
-    output:
-      type: proto:polymarket.orderbook.v1.Accounts
-
-  - name: map_global_orderbook_stats
-    kind: map
-    initialBlock: 33605403
-    inputs:
-      - store: store_global_stats
-    output:
-      type: proto:polymarket.orderbook.v1.GlobalOrderbookStats
-
-  # Final comprehensive analytics output
-  - name: map_orderbook_analytics
-    kind: map
-    initialBlock: 33605403
-    inputs:
-      - map: map_market_orderbooks
-      - map: map_trader_accounts
-      - map: map_global_orderbook_stats
-    output:
-      type: proto:polymarket.orderbook.v1.OrderbookAnalytics
-
-network: polygon
