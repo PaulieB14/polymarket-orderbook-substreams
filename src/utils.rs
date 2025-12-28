@@ -25,14 +25,19 @@ pub fn determine_trade_side(
     _maker_amount: &BigInt,
     _taker_amount: &BigInt,
 ) -> String {
-    let maker_id_num = maker_asset_id.to_u64();
-    let taker_id_num = taker_asset_id.to_u64();
+    // For very large BigInt values, we'll use string-based logic
+    let maker_id_str = maker_asset_id.to_string();
+    let taker_id_str = taker_asset_id.to_string();
+    
+    // Check if the last digit is even (0,2,4,6,8) or odd (1,3,5,7,9)
+    let maker_is_even = maker_id_str.chars().last().map_or(false, |c| matches!(c, '0'|'2'|'4'|'6'|'8'));
+    let taker_is_even = taker_id_str.chars().last().map_or(false, |c| matches!(c, '0'|'2'|'4'|'6'|'8'));
     
     // USDC collateral typically has even asset IDs (divisible by 2)
     // Outcome tokens typically have odd asset IDs
-    match (maker_id_num % 2, taker_id_num % 2) {
-        (0, 1) => "buy".to_string(),   // Maker provides USDC, gets outcome token
-        (1, 0) => "sell".to_string(),  // Maker provides outcome token, gets USDC
+    match (maker_is_even, taker_is_even) {
+        (true, false) => "buy".to_string(),   // Maker provides USDC, gets outcome token
+        (false, true) => "sell".to_string(),  // Maker provides outcome token, gets USDC
         _ => "unknown".to_string(),
     }
 }
