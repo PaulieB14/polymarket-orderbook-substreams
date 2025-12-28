@@ -2,6 +2,9 @@
 name = "polymarket-orderbook-substreams"
 version = "0.1.0"
 edition = "2021"
+description = "Real-time orderbook analytics for Polymarket prediction markets"
+repository = "https://github.com/PaulieB14/polymarket-orderbook-substreams"
+license = "MIT"
 
 [lib]
 name = "polymarket_orderbook_substreams"
@@ -11,9 +14,14 @@ crate-type = ["cdylib"]
 substreams = "0.5"
 substreams-ethereum = "0.9"
 hex-literal = "0.4"
+hex = "0.4"
 prost = "0.12"
 prost-types = "0.12"
 bigdecimal = "0.4"
+anyhow = "1.0"
+ethabi = "17.2"
+num-traits = "0.2"
 
 [build-dependencies]
 substreams-ethereum = "0.9"
+anyhow = "1.0"

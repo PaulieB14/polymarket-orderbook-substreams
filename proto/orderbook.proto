@@ -4,6 +4,27 @@ package polymarket.orderbook.v1;
 
 import "google/protobuf/timestamp.proto";
 
+// Enhanced protobuf schema with foundational stores support
+
+// Store deltas for efficient parallel execution
+message OrderbookDeltas {
+  repeated OrderbookDelta deltas = 1;
+}
+
+message OrderbookDelta {
+  enum Operation {
+    CREATE = 0;
+    UPDATE = 1;
+    DELETE = 2;
+  }
+  
+  Operation operation = 1;
+  string key = 2;
+  string old_value = 3;
+  string new_value = 4;
+  uint64 ordinal = 5;
+}
+
 // Individual order fill event
 message OrderFilledEvent {
   string id = 1;
@@ -20,6 +41,7 @@ message OrderFilledEvent {
   uint64 block_number = 12;
   string side = 13;
   string price = 14;
+  uint64 ordinal = 15; // For deterministic ordering
 }
 
 message OrdersMatchedEvent {
@@ -30,8 +52,10 @@ message OrdersMatchedEvent {
   string maker_amount_filled = 5;
   string taker_amount_filled = 6;
   uint64 block_number = 7;
+  uint64 ordinal = 8;
 }
 
+// Enhanced market orderbook with more analytics
 message MarketOrderbook {
   string id = 1;
   string condition_id = 2;
@@ -43,8 +67,31 @@ message MarketOrderbook {
   string average_trade_size = 8;
   string total_fees = 9;
   uint64 last_active_day = 10;
+  string mid_price = 11;
+  string spread = 12;
+  
+  // Advanced analytics
+  string volume_24h = 13;
+  string volume_7d = 14;
+  string price_change_24h = 15;
+  string volatility = 16;
+  uint64 unique_traders_24h = 17;
+  repeated PriceLevel bid_levels = 18;
+  repeated PriceLevel ask_levels = 19;
+  
+  // Market microstructure
+  string liquidity_score = 20;
+  string market_depth = 21;
+  uint64 last_updated_block = 22;
 }
 
+message PriceLevel {
+  string price = 1;
+  string size = 2;
+  uint64 order_count = 3;
+}
+
+// Enhanced account with more trader analytics
 message Account {
   string id = 1;
   uint64 trades_quantity = 2;
@@ -54,8 +101,24 @@ message Account {
   google.protobuf.Timestamp last_trade = 6;
   bool is_active = 7;
   string trader_type = 8;
+  
+  // Advanced trader metrics
+  string volume_24h = 9;
+  string volume_7d = 10;
+  string pnl_realized = 11;
+  string pnl_unrealized = 12;
+  uint64 markets_traded = 13;
+  string win_rate = 14;
+  string sharpe_ratio = 15;
+  string max_drawdown = 16;
+  
+  // Risk metrics
+  string position_size = 17;
+  string leverage = 18;
+  string risk_score = 19;
 }
 
+// Enhanced global stats with more comprehensive metrics
 message GlobalOrderbookStats {
   string id = 1;
   uint64 trades_quantity = 2;
@@ -68,8 +131,22 @@ message GlobalOrderbookStats {
   uint64 unique_traders = 9;
   uint64 active_markets = 10;
   google.protobuf.Timestamp last_updated = 11;
+  
+  // Market health indicators
+  string total_liquidity = 12;
+  string market_cap = 13;
+  string volume_24h = 14;
+  string volume_7d = 15;
+  uint64 new_traders_24h = 16;
+  uint64 new_markets_24h = 17;
+  
+  // Platform metrics
+  string average_spread = 18;
+  string platform_fee_revenue = 19;
+  string maker_taker_ratio = 20;
 }
 
+// Collection messages for batch processing
 message OrderFilledEvents {
   repeated OrderFilledEvent events = 1;
   uint64 block_number = 2;
@@ -98,6 +175,7 @@ message Accounts {
   google.protobuf.Timestamp timestamp = 4;
 }
 
+// Enhanced analytics output
 message OrderbookAnalytics {
   repeated MarketOrderbook market_orderbooks = 1;
   GlobalOrderbookStats global_stats = 2;
@@ -105,4 +183,55 @@ message OrderbookAnalytics {
   uint64 block_number = 4;
   string block_hash = 5;
   google.protobuf.Timestamp timestamp = 6;
+  
+  // Real-time insights
+  repeated MarketAlert market_alerts = 7;
+  repeated TradingOpportunity arbitrage_opportunities = 8;
+  MarketSentiment sentiment = 9;
+}
+
+// Advanced analytics structures
+message MarketAlert {
+  enum AlertType {
+    VOLUME_SPIKE = 0;
+    PRICE_MOVEMENT = 1;
+    LIQUIDITY_CHANGE = 2;
+    UNUSUAL_ACTIVITY = 3;
+  }
+  
+  AlertType type = 1;
+  string market_id = 2;
+  string message = 3;
+  string severity = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+message TradingOpportunity {
+  string market_a = 1;
+  string market_b = 2;
+  string price_difference = 3;
+  string potential_profit = 4;
+  string confidence = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message MarketSentiment {
+  string overall_sentiment = 1; // bullish, bearish, neutral
+  string confidence_score = 2;
+  string volume_trend = 3;
+  string price_momentum = 4;
+  repeated string trending_markets = 5;
+}
+
+// Store outputs for foundational stores
+message MarketStore {
+  map<string, MarketOrderbook> markets = 1;
+}
+
+message TraderStore {
+  map<string, Account> traders = 1;
+}
+
+message GlobalStore {
+  GlobalOrderbookStats stats = 1;
 }
