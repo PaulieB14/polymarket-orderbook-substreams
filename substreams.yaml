@@ -3,6 +3,13 @@ package:
   name: polymarket_orderbook_substreams
   version: v0.1.0
   url: https://github.com/PaulieB14/polymarket-orderbook-substreams
+  doc: |
+    # Polymarket Orderbook Substreams
+    
+    Real-time orderbook analytics for Polymarket prediction markets on Polygon.
+    
+    Tracks CTF Exchange and Neg Risk Exchange events including OrderFilled and OrdersMatched events.
+    Provides comprehensive market microstructure analytics for trading activity, volume, and market depth.
 
 network: polygon
 
