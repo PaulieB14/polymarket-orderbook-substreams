@@ -90,3 +90,71 @@ modules:
     doc: |
       Combines order fills from both exchanges into a single stream.
       Use this module for unified order flow analysis.
+
+  # ============================================
+  # Foundational Stores (Layer 2)
+  # ============================================
+
+  - name: store_markets
+    kind: store
+    initialBlock: 57000000
+    updatePolicy: set
+    valueType: proto:polymarket.orderbook.v1.MarketOrderbook
+    inputs:
+      - map: map_all_order_fills
+    doc: Stores market-level statistics indexed by asset ID.
+
+  - name: store_traders
+    kind: store
+    initialBlock: 57000000
+    updatePolicy: set
+    valueType: proto:polymarket.orderbook.v1.Account
+    inputs:
+      - map: map_all_order_fills
+    doc: Stores trader-level statistics indexed by address.
+
+  - name: store_global_stats
+    kind: store
+    initialBlock: 57000000
+    updatePolicy: set
+    valueType: proto:polymarket.orderbook.v1.GlobalOrderbookStats
+    inputs:
+      - map: map_all_order_fills
+    doc: Stores global platform statistics.
+
+  # ============================================
+  # Analytics Outputs (Layer 3)
+  # ============================================
+
+  - name: map_market_orderbooks
+    kind: map
+    initialBlock: 57000000
+    inputs:
+      - map: map_all_order_fills
+      - store: store_markets
+        mode: deltas
+    output:
+      type: proto:polymarket.orderbook.v1.MarketOrderbooks
+    doc: Emits market orderbook updates when markets change.
+
+  - name: map_trader_accounts
+    kind: map
+    initialBlock: 57000000
+    inputs:
+      - map: map_all_order_fills
+      - store: store_traders
+        mode: deltas
+    output:
+      type: proto:polymarket.orderbook.v1.Accounts
+    doc: Emits trader account updates for leaderboards.
+
+  - name: map_global_orderbook_stats
+    kind: map
+    initialBlock: 57000000
+    inputs:
+      - map: map_all_order_fills
+      - store: store_global_stats
+        mode: deltas
+    output:
+      type: proto:polymarket.orderbook.v1.GlobalOrderbookStats
+    doc: Emits global platform statistics.
