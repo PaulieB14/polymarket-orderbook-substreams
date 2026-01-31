@@ -7,22 +7,17 @@ package:
   doc: |
     # Polymarket Orderbook Substreams
 
-    Real-time orderbook analytics for Polymarket prediction markets on Polygon.
+    Real-time orderbook event extraction for Polymarket prediction markets on Polygon.
 
     Features:
     - Order fill extraction from CTF Exchange and Neg Risk Exchange
-    - Market-level aggregations (volume, trades, unique traders)
-    - Trader analytics (volume, trade count, activity tracking)
-    - Global platform statistics
-    - SQL sink support (PostgreSQL)
-    - Clickhouse sink support for high-performance analytics
+    - Orders matched event tracking
+    - Combined order flow stream from both exchanges
+    - Price calculation and trade side determination
 
-    Built with foundational stores for efficient parallel execution.
+    SQL schemas included for PostgreSQL and Clickhouse persistence.
 
 network: polygon
-
-imports:
-  database_change: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v2.1.0/substreams-database-change-v2.1.0.spkg
 
 protobuf:
   files:
@@ -95,172 +90,3 @@ modules:
     doc: |
       Combines order fills from both exchanges into a single stream.
       Use this module for unified order flow analysis.
-
-  # ============================================
-  # Foundational Stores (Layer 2)
-  # ============================================
-
-  - name: store_markets
-    kind: store
-    initialBlock: 57000000
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.MarketOrderbook
-    inputs:
-      - map: map_all_order_fills
-    doc: |
-      Foundational store tracking market-level statistics.
-      Keys: market:{asset_id}
-
-      Tracks per market:
-      - Total volume and trade count
-      - Buy/sell ratios
-      - Unique trader count
-      - Last trade timestamp
-
-  - name: store_traders
-    kind: store
-    initialBlock: 57000000
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.Account
-    inputs:
-      - map: map_all_order_fills
-    doc: |
-      Foundational store tracking trader-level analytics.
-      Keys: trader:{address}
-
-      Tracks per trader:
-      - Total volume and trade count
-      - Markets traded
-      - First and last trade timestamps
-      - Active status
-
-  - name: store_global_stats
-    kind: store
-    initialBlock: 57000000
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.GlobalOrderbookStats
-    inputs:
-      - map: map_all_order_fills
-    doc: |
-      Foundational store tracking platform-wide statistics.
-      Keys: global
-
-      Tracks:
-      - Total platform volume
-      - Total trade count
-      - Unique traders and markets
-      - Buy/sell ratios
-
-  # ============================================
-  # Analytics Modules (Layer 3)
-  # ============================================
-
-  - name: map_market_orderbooks
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - store: store_markets
-        mode: deltas
-    output:
-      type: proto:polymarket.orderbook.v1.MarketOrderbooks
-    doc: |
-      Outputs market orderbook snapshots on each update.
-      Use for real-time market monitoring dashboards.
-
-  - name: map_trader_accounts
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - store: store_traders
-        mode: deltas
-    output:
-      type: proto:polymarket.orderbook.v1.Accounts
-    doc: |
-      Outputs trader account updates.
-      Use for trader leaderboards and analytics.
-
-  - name: map_global_orderbook_stats
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - store: store_global_stats
-        mode: deltas
-    output:
-      type: proto:polymarket.orderbook.v1.GlobalOrderbookStats
-    doc: |
-      Outputs global platform statistics on each update.
-      Use for platform health dashboards.
-
-  - name: map_orderbook_analytics
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - source: sf.substreams.v1.Clock
-      - store: store_markets
-        mode: get
-      - store: store_traders
-        mode: get
-      - store: store_global_stats
-        mode: get
-    output:
-      type: proto:polymarket.orderbook.v1.OrderbookAnalytics
-    doc: |
-      Comprehensive orderbook analytics combining:
-      - Top markets by volume
-      - Top traders by activity
-      - Global platform metrics
-
-      This is the main output module for analytics dashboards.
-
-  # ============================================
-  # Database Sink Modules (Layer 4)
-  # ============================================
-
-  - name: db_out
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - map: map_all_order_fills
-      - store: store_markets
-        mode: deltas
-      - store: store_traders
-        mode: deltas
-      - store: store_global_stats
-        mode: deltas
-    output:
-      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
-    doc: |
-      SQL Sink module for PostgreSQL.
-
-      Outputs DatabaseChanges for:
-      - order_fills: Individual trade events
-      - market_orderbooks: Market-level aggregations
-      - trader_accounts: Trader analytics
-      - global_stats: Platform-wide metrics
-
-      Setup: substreams-sink-sql setup "psql://..." substreams.spkg
-      Run: substreams-sink-sql run "psql://..." substreams.spkg
-
-  - name: clickhouse_out
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - map: map_all_order_fills
-      - store: store_markets
-        mode: deltas
-      - store: store_traders
-        mode: deltas
-      - store: store_global_stats
-        mode: deltas
-    output:
-      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
-    doc: |
-      Clickhouse Sink module for high-performance analytics.
-
-      Optimized tables with:
-      - MergeTree engines for time-series data
-      - Materialized views for aggregations
-      - Partitioning by month for efficient queries
-
-      Setup: substreams-sink-sql setup "clickhouse://..." substreams.spkg
-      Run: substreams-sink-sql run "clickhouse://..." substreams.spkg
