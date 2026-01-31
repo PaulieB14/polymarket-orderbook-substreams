@@ -52,6 +52,11 @@ pub fn extract_condition_id(asset_id: &BigInt) -> String {
     format!("condition_{}", asset_id.to_string())
 }
 
+/// Extract condition ID from asset ID string
+pub fn extract_condition_id_from_str(asset_id: &str) -> String {
+    format!("condition_{}", asset_id)
+}
+
 /// Format timestamp for day calculation
 pub fn timestamp_to_day(timestamp: u64) -> u64 {
     timestamp / 86400 // Convert seconds to days

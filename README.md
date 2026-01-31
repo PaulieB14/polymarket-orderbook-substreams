@@ -1,259 +1,399 @@
-# Polymarket Orderbook Substreams
+<p align="center">
+  <img src="./download.png" alt="Polymarket" width="200"/>
+</p>
 
-The Polymarket Orderbook Substreams contains a comprehensive set of modules that allow you to easily retrieve real-time orderbook analytics from Polymarket prediction markets on Polygon, including order fills, market statistics, trader analytics, and advanced market microstructure data.
+<h1 align="center">Polymarket Orderbook Substreams</h1>
 
-![Polymarket Logo](./polymarket-logo.png)
+<p align="center">
+  <strong>Real-time orderbook analytics for Polymarket prediction markets on Polygon</strong>
+</p>
 
-The `substreams.yaml` file defines all the different modules available, and also provides you with documentation about the usage of every module.
+<p align="center">
+  <a href="https://substreams.dev/packages/polymarket-orderbook-substreams/v0.2.0">
+    <img src="https://img.shields.io/badge/substreams.dev-v0.2.0-blue" alt="Substreams Package"/>
+  </a>
+  <a href="https://polygon.technology/">
+    <img src="https://img.shields.io/badge/network-Polygon-8247E5" alt="Polygon"/>
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
+  </a>
+  <a href="https://www.postgresql.org/">
+    <img src="https://img.shields.io/badge/sink-PostgreSQL-336791" alt="PostgreSQL"/>
+  </a>
+  <a href="https://clickhouse.com/">
+    <img src="https://img.shields.io/badge/sink-Clickhouse-FFCC01" alt="Clickhouse"/>
+  </a>
+</p>
 
-## Using this module to speed up a substreams
+---
 
-### Using the full "ethereum block" object (simplest if changing an existing substreams)
+## Overview
 
-In your `substreams.yaml`:
+High-performance Substreams modules for extracting, processing, and persisting orderbook events from Polymarket's CTF Exchange and Neg Risk Exchange contracts on Polygon. Built with foundational stores for efficient parallel execution and includes ready-to-use SQL and Clickhouse sinks.
 
-**Import this .spkg:**
-```yaml
-imports:
-  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.1.0.spkg
-```
+### Key Features
 
-**Replace any `source: sf.ethereum.type.v2.Block` input** with `map: polymarket:map_orderbook_analytics` (you will be getting comprehensive orderbook analytics with market data, trader statistics, and real-time insights)
+| Feature | Description |
+|---------|-------------|
+| **Dual Exchange Support** | Tracks both CTF Exchange and Neg Risk Exchange contracts |
+| **Order Fill Events** | Detailed trade execution data with price calculations |
+| **Market Analytics** | Volume, trades, buy/sell ratios, average trade sizes |
+| **Trader Analytics** | Per-trader volume, trade counts, activity tracking |
+| **Global Statistics** | Platform-wide metrics and fee revenue |
+| **PostgreSQL Sink** | Ready-to-use SQL schema for relational queries |
+| **Clickhouse Sink** | High-performance analytics with materialized views |
 
-**Add block filtering to your "entry modules"** (any module reading blocks or transactions before emitting your custom types):
-
-If you want to track specific markets by asset ID, use the market filtering like this:
-```yaml
-blockFilter:
-  module: polymarket:store_markets
-  query:
-    string: "market:12345 || market:67890"
-```
-
-If you need to track specific traders, use the trader filtering like this:
-```yaml
-blockFilter:
-  module: polymarket:store_traders  
-  query:
-    string: "trader:0x1234... || trader:0x5678..."
-```
-
-### Using the new 'orderbook analytics' object (simplest if writing a new substreams)
-
-In your `substreams.yaml`:
-
-**Import this .spkg:**
-```yaml
-imports:
-  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.1.0.spkg
-```
-
-**Set one of the analytics modules** (along with `source: sf.substreams.v1.Clock` if you need block number/timestamp) as your module input:
-
-```yaml
-- name: my_polymarket_module
-  kind: map
-  inputs:
-    - source: sf.substreams.v1.Clock
-    - map: polymarket:map_orderbook_analytics
-```
-
-**Set parameters** to filter the data that you want to be fed to your module:
-
-```yaml
-params:
-  polymarket:store_markets: "asset_id:12345"
-  polymarket:store_traders: "min_volume:10000"
-```
-
-**Run `substreams protogen`** against your `substreams.yaml` to create the rust bindings of the protobuf definitions inside the substreams.
-
-## Modules
-
-### `map_orderbook_analytics` (map)
-This module provides comprehensive orderbook analytics combining market data, trader statistics, global metrics, market alerts, and arbitrage opportunities. It's the main output module that aggregates all orderbook intelligence.
-
-### `store_markets` (store)
-This foundational store efficiently tracks market-level orderbook data including:
-- Trade volumes and counts
-- Price movements and volatility
-- Liquidity scores and market depth
-- Real-time bid/ask levels
-
-**Example keys:** `market:12345`, `market:67890`
-
-Use it to only get blocks that contain trades for specific markets:
-```yaml
-- name: my_module
-  ...
-  blockFilter:
-    module: store_markets
-    query:
-      string: "market:12345 || market:67890"
-```
-
-### `store_traders` (store)
-This foundational store tracks comprehensive trader analytics including:
-- Trading volumes and P&L
-- Risk metrics and Sharpe ratios
-- Trader classification (retail, whale, market maker, arbitrageur)
-- Win rates and performance metrics
-
-**Example keys:** `trader:0x1234...`, `trader:0x5678...`
-
-Use it to track specific high-value traders:
-```yaml
-- name: my_module
-  ...
-  blockFilter:
-    module: store_traders
-    query:
-      string: "trader:0x1234567890abcdef || min_volume:100000"
-```
-
-### `map_ctf_exchange_order_filled` (map)
-This module extracts and processes OrderFilled events from the CTF Exchange contract (`0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e`), providing detailed trade execution data with price calculations and trade side determination.
-
-### `map_neg_risk_exchange_order_filled` (map)
-This module extracts and processes OrderFilled events from the Neg Risk CTF Exchange contract (`0xC5d563A36AE78145C45a50134d48A1215220f80a`), handling negative risk markets with specialized processing.
-
-### `map_market_orderbooks` (map)
-This module uses the `store_markets` foundational store to provide real-time market orderbook snapshots with:
-- Current market statistics
-- Liquidity analysis
-- Price level data
-- Market health indicators
-
-### `map_trader_accounts` (map)
-This module uses the `store_traders` foundational store to provide comprehensive trader analytics with:
-- Portfolio performance metrics
-- Risk assessment scores
-- Trading behavior classification
-- Historical performance data
-
-### `map_global_orderbook_stats` (map)
-This module aggregates platform-wide statistics including:
-- Total trading volumes
-- Active market counts
-- Unique trader metrics
-- Platform health indicators
-
-## Advanced Features
-
-### 🚀 **Parallel Execution Optimized**
-- Designed for Substreams' 25K block segments
-- Leverages backward/forward parallel execution
-- Foundational stores for efficient state management
-- Optimized for production-grade performance
-
-### 📊 **Market Microstructure Analytics**
-- Real-time liquidity scoring
-- Volatility calculations
-- Market depth analysis
-- Spread monitoring
-
-### 🎯 **Trader Intelligence**
-- Sharpe ratio calculations
-- Win rate analysis
-- Risk scoring algorithms
-- Automated trader classification
-
-### ⚡ **Real-time Insights**
-- Market alert system
-- Arbitrage opportunity detection
-- Unusual activity monitoring
-- Price movement alerts
-
-## Contract Addresses
-
-- **CTF Exchange:** `0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e`
-- **Neg Risk Exchange:** `0xC5d563A36AE78145C45a50134d48A1215220f80a`
-- **USDC Collateral:** `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
+---
 
 ## Quick Start
 
 ### Installation
+
 ```bash
 # Install Substreams CLI
-curl -sSf https://substreams.streamingfast.io/install | bash
+brew install streamingfast/tap/substreams
 
-# Clone and build
-git clone https://github.com/PaulieB14/polymarket-orderbook-substreams
-cd polymarket-orderbook-substreams
-substreams build
+# Authenticate
+substreams auth
 ```
 
-### Usage Examples
+### Run Streaming Modules
 
-#### Track All Orderbook Activity
 ```bash
-substreams run substreams.yaml map_orderbook_analytics \
-  -e polygon.streamingfast.io:443 \
-  -s 66000000 -t +100
+# Stream all order fills from both exchanges
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg \
+  map_all_order_fills \
+  -e polygon.substreams.pinax.network:443 \
+  -s 57000000 -t +1000
+
+# Stream market analytics
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg \
+  map_market_orderbooks \
+  -e polygon.substreams.pinax.network:443 \
+  -s 57000000 -t +1000
+
+# Stream global platform stats
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg \
+  map_global_orderbook_stats \
+  -e polygon.substreams.pinax.network:443 \
+  -s 57000000 -t +1000
 ```
-
-#### Monitor Specific Markets
-```bash
-substreams run substreams.yaml map_market_orderbooks \
-  -e polygon.streamingfast.io:443 \
-  -s 66000000 -t +50
-```
-
-#### Analyze Trader Behavior
-```bash
-substreams run substreams.yaml map_trader_accounts \
-  -e polygon.streamingfast.io:443 \
-  -s 66000000 -t +25
-```
-
-#### Get Global Platform Stats
-```bash
-substreams run substreams.yaml map_global_orderbook_stats \
-  -e polygon.streamingfast.io:443 \
-  -s 66000000 -t +10
-```
-
-## Performance Benchmarks
-
-- **3-5x faster** than traditional subgraph indexing
-- **Real-time processing** with <1 second latency
-- **Parallel execution** across 15 workers in production
-- **Efficient caching** via foundational stores
-
-## Documentation
-
-### Maps
-- `map_orderbook_analytics` - Comprehensive orderbook analytics
-- `map_market_orderbooks` - Market-level orderbook data  
-- `map_trader_accounts` - Trader analytics and performance
-- `map_global_orderbook_stats` - Platform-wide statistics
-- `map_ctf_exchange_order_filled` - CTF exchange order fills
-- `map_neg_risk_exchange_order_filled` - Neg risk exchange order fills
-
-### Stores
-- `store_markets` - Foundational market state management
-- `store_traders` - Foundational trader analytics
-- `store_global_stats` - Platform-wide metrics store
-
-## Architecture
-
-Built on [Substreams architecture](https://docs.substreams.dev/reference-material/architecture) with:
-- **Foundational Stores** for efficient state management
-- **Parallel Execution** for maximum performance  
-- **Delta Tracking** for minimal update overhead
-- **Advanced Analytics** for market intelligence
-
-## Related Projects
-
-- [Polymarket P&L Substreams](https://substreams.dev/packages/polymarket-pnl/v0.3.1)
-- [Polymarket Orders Subgraph](https://github.com/PaulieB14/Polymarket-Orders)
-
-## License
-
-MIT License
 
 ---
 
-**Built with ❤️ for the Polymarket community using advanced Substreams technology**
+## Architecture
 
-*Powered by StreamingFast infrastructure for maximum performance and reliability*
+```
+                              Polygon Blockchain
+                                     │
+                                     ▼
+                            ┌─────────────────┐
+                            │ Firehose Blocks │
+                            └─────────────────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    ▼                                 ▼
+        ┌───────────────────┐             ┌───────────────────┐
+        │   CTF Exchange    │             │  Neg Risk Exchange│
+        │ Order Fill Events │             │  Order Fill Events│
+        └───────────────────┘             └───────────────────┘
+                    │                                 │
+                    └────────────┬────────────────────┘
+                                 ▼
+                    ┌────────────────────────┐
+                    │   map_all_order_fills  │
+                    │  (Combined Event Stream)│
+                    └────────────────────────┘
+                                 │
+            ┌────────────────────┼────────────────────┐
+            ▼                    ▼                    ▼
+   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+   │  store_markets  │  │  store_traders  │  │store_global_stats│
+   │ (Market Stats)  │  │ (Trader Stats)  │  │ (Platform Stats) │
+   └─────────────────┘  └─────────────────┘  └─────────────────┘
+            │                    │                    │
+            ▼                    ▼                    ▼
+   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+   │map_market_      │  │map_trader_      │  │map_global_      │
+   │orderbooks       │  │accounts         │  │orderbook_stats  │
+   └─────────────────┘  └─────────────────┘  └─────────────────┘
+            │                    │                    │
+            └────────────────────┼────────────────────┘
+                                 ▼
+                    ┌────────────────────────┐
+                    │        db_out          │
+                    │   (SQL/Clickhouse)     │
+                    └────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    ▼                         ▼
+           ┌─────────────────┐      ┌─────────────────┐
+           │   PostgreSQL    │      │   Clickhouse    │
+           └─────────────────┘      └─────────────────┘
+```
+
+---
+
+## Modules
+
+### Layer 1: Event Extraction
+
+| Module | Description |
+|--------|-------------|
+| `map_ctf_exchange_order_filled` | Extracts OrderFilled events from CTF Exchange |
+| `map_neg_risk_exchange_order_filled` | Extracts OrderFilled events from Neg Risk Exchange |
+| `map_ctf_exchange_orders_matched` | Extracts OrdersMatched events from CTF Exchange |
+| `map_neg_risk_exchange_orders_matched` | Extracts OrdersMatched events from Neg Risk Exchange |
+
+### Layer 1.5: Combined Events
+
+| Module | Description |
+|--------|-------------|
+| `map_all_order_fills` | Combines order fills from both exchanges into unified stream |
+
+### Layer 2: Foundational Stores
+
+| Store | Key Pattern | Description |
+|-------|-------------|-------------|
+| `store_markets` | `market:{asset_id}` | Market-level statistics (volume, trades, prices) |
+| `store_traders` | `trader:{address}` | Trader analytics (volume, trade count, fees) |
+| `store_global_stats` | `global` | Platform-wide metrics |
+
+### Layer 3: Analytics Outputs
+
+| Module | Description |
+|--------|-------------|
+| `map_market_orderbooks` | Real-time market snapshots on updates |
+| `map_trader_accounts` | Trader account updates for leaderboards |
+| `map_global_orderbook_stats` | Global platform statistics |
+| `map_orderbook_analytics` | Comprehensive analytics combining all stores |
+
+### Layer 4: Database Sinks
+
+| Module | Description |
+|--------|-------------|
+| `db_out` | PostgreSQL sink with normalized tables |
+| `clickhouse_out` | Clickhouse sink optimized for analytics |
+
+---
+
+## SQL Sink (PostgreSQL)
+
+### Setup
+
+```bash
+# Create database
+createdb polymarket_orderbook
+
+# Apply schema
+psql -d polymarket_orderbook -f schema.sql
+
+# Setup sink
+substreams-sink-sql setup \
+  "psql://user:pass@localhost:5432/polymarket_orderbook?sslmode=disable" \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg
+
+# Run sink
+substreams-sink-sql run \
+  "psql://user:pass@localhost:5432/polymarket_orderbook?sslmode=disable" \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg \
+  -e polygon.substreams.pinax.network:443
+```
+
+### Example Queries
+
+```sql
+-- Top markets by volume
+SELECT * FROM top_markets_by_volume;
+
+-- Top traders by volume
+SELECT * FROM top_traders_by_volume;
+
+-- Recent large trades (> 1000 USDC)
+SELECT * FROM recent_large_trades;
+
+-- Market activity over time
+SELECT
+  DATE(created_at) as date,
+  COUNT(*) as trades,
+  SUM(taker_amount_filled::numeric / 1e18) as volume
+FROM order_fills
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+```
+
+---
+
+## Clickhouse Sink
+
+### Setup
+
+```bash
+# Create database
+clickhouse-client -q "CREATE DATABASE polymarket_orderbook"
+
+# Apply schema
+clickhouse-client -d polymarket_orderbook < clickhouse-schema.sql
+
+# Setup sink
+substreams-sink-sql setup \
+  "clickhouse://default:@localhost:9000/polymarket_orderbook" \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg
+
+# Run sink
+substreams-sink-sql run \
+  "clickhouse://default:@localhost:9000/polymarket_orderbook" \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg \
+  -e polygon.substreams.pinax.network:443
+```
+
+### Example Queries
+
+```sql
+-- Top markets by 24h volume
+SELECT
+    market_id,
+    sum(total_volume) as volume_24h,
+    sum(trades_count) as trades_24h
+FROM hourly_volume
+WHERE hour >= now() - INTERVAL 24 HOUR
+GROUP BY market_id
+ORDER BY volume_24h DESC
+LIMIT 10;
+
+-- Trader leaderboard
+SELECT
+    id,
+    total_volume,
+    trades_quantity,
+    total_fees
+FROM trader_analytics FINAL
+WHERE is_active = 1
+ORDER BY total_volume DESC
+LIMIT 100;
+
+-- Hourly volume trend
+SELECT
+    hour,
+    sum(total_volume) as volume,
+    sum(trades_count) as trades
+FROM hourly_volume
+WHERE hour >= now() - INTERVAL 7 DAY
+GROUP BY hour
+ORDER BY hour;
+```
+
+---
+
+## Data Schema
+
+### OrderFilledEvent
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique event identifier |
+| `transaction_hash` | string | Transaction hash |
+| `order_hash` | string | Order hash |
+| `maker` | string | Maker address |
+| `taker` | string | Taker address |
+| `maker_asset_id` | string | Maker's asset token ID |
+| `taker_asset_id` | string | Taker's asset token ID |
+| `maker_amount_filled` | string | Amount filled for maker |
+| `taker_amount_filled` | string | Amount filled for taker |
+| `fee` | string | Transaction fee |
+| `side` | string | Trade side (buy/sell) |
+| `price` | string | Calculated execution price |
+| `block_number` | uint64 | Block number |
+
+### MarketOrderbook
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Market identifier |
+| `trades_quantity` | uint64 | Total trade count |
+| `buys_quantity` | uint64 | Buy trade count |
+| `sells_quantity` | uint64 | Sell trade count |
+| `collateral_volume` | string | Total volume |
+| `average_trade_size` | string | Average trade size |
+| `total_fees` | string | Total fees collected |
+| `mid_price` | string | Current mid price |
+
+---
+
+## Contract Addresses
+
+| Contract | Address | Description |
+|----------|---------|-------------|
+| CTF Exchange | `0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e` | Main prediction market exchange |
+| Neg Risk Exchange | `0xC5d563A36AE78145C45a50134d48A1215220f80a` | Negative risk market exchange |
+
+---
+
+## Using as a Dependency
+
+Import this package to build higher-level analytics:
+
+```yaml
+# substreams.yaml
+imports:
+  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.2.0.spkg
+
+modules:
+  - name: my_analytics_module
+    kind: map
+    inputs:
+      - map: polymarket:map_all_order_fills
+    output:
+      type: proto:my.custom.Analytics
+```
+
+---
+
+## Build from Source
+
+```bash
+# Clone repository
+git clone https://github.com/PaulieB14/polymarket-orderbook-substreams
+cd polymarket-orderbook-substreams
+
+# Build
+substreams build
+
+# Run locally
+substreams run substreams.yaml map_all_order_fills \
+  -e polygon.substreams.pinax.network:443 \
+  -s 57000000 -t +100
+```
+
+---
+
+## Performance
+
+| Metric | Value |
+|--------|-------|
+| Start Block | 57,000,000 (Polymarket launch) |
+| Parallel Execution | Optimized with foundational stores |
+| Latency | Low latency with direct event extraction |
+| Sink Support | PostgreSQL, Clickhouse |
+
+---
+
+## Related Projects
+
+- [Polymarket P&L Subgraph](https://github.com/PaulieB14/polymarket-profit-and-loss-) - Track profit & loss
+- [Substreams Documentation](https://substreams.streamingfast.io) - Learn more about Substreams
+- [Substreams Sink SQL](https://github.com/streamingfast/substreams-sink-sql) - SQL sink documentation
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  <strong>Built for the Polymarket community</strong><br/>
+  <sub>Powered by StreamingFast Substreams</sub>
+</p>

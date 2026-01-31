@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 substreams = "0.5"
 substreams-ethereum = "0.9"
+substreams-database-change = "4"
 hex-literal = "0.4"
 hex = "0.4"
 prost = "0.11"
