@@ -21,6 +21,7 @@ bigdecimal = "0.4"
 anyhow = "1.0"
 ethabi = "17.2"
 num-traits = "0.2"
+substreams-database-change = "4"
 
 [build-dependencies]
 substreams-ethereum = "0.11"

@@ -19,11 +19,18 @@ package:
 
 network: polygon
 
+imports:
+  database: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v3.0.0/substreams-sink-database-changes-v3.0.0.spkg
+  sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
+
 protobuf:
   files:
     - polymarket/orderbook/v1/orderbook.proto
   importPaths:
     - ./proto
+  excludePaths:
+    - sf/substreams
+    - google
 
 binaries:
   default:
@@ -158,3 +165,28 @@ modules:
     output:
       type: proto:polymarket.orderbook.v1.GlobalOrderbookStats
     doc: Emits global platform statistics.
+
+  # ============================================
+  # Database Sink Output (Layer 4)
+  # ============================================
+
+  - name: db_out
+    kind: map
+    initialBlock: 57000000
+    inputs:
+      - map: map_all_order_fills
+      - map: map_market_orderbooks
+      - map: map_trader_accounts
+      - map: map_global_orderbook_stats
+    output:
+      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
+    doc: |
+      Converts all analytics outputs into DatabaseChanges for PostgreSQL/ClickHouse.
+      Use with substreams-sink-sql to persist data.
+
+sink:
+  module: db_out
+  type: sf.substreams.sink.sql.v1.Service
+  config:
+    schema: "./schema.sql"
+    engine: postgres

@@ -2,6 +2,8 @@ use substreams::Hex;
 use substreams::store::{StoreNew, StoreSet, StoreSetProto, StoreGet, StoreGetProto, Deltas, DeltaProto};
 use substreams_ethereum::pb::eth::v2 as eth;
 use substreams_ethereum::Event;
+use substreams_database_change::pb::sf::substreams::sink::database::v1::DatabaseChanges;
+use substreams_database_change::tables::Tables;
 use prost_types::Timestamp;
 use std::str::FromStr;
 use bigdecimal::BigDecimal;
@@ -456,6 +458,78 @@ pub fn map_global_orderbook_stats(
         });
 
     Ok(stats)
+}
+
+// ============================================
+// Database Sink Output (Layer 4)
+// ============================================
+
+/// Converts all analytics outputs into DatabaseChanges for substreams-sink-sql
+#[substreams::handlers::map]
+pub fn db_out(
+    order_fills: OrderFilledEvents,
+    market_orderbooks: MarketOrderbooks,
+    trader_accounts: Accounts,
+    global_stats: GlobalOrderbookStats,
+) -> Result<DatabaseChanges, substreams::errors::Error> {
+    let mut tables = Tables::new();
+
+    // Order fills → order_fills table (CREATE for each event)
+    for event in &order_fills.events {
+        tables
+            .create_row("order_fills", &event.id)
+            .set("transaction_hash", &event.transaction_hash)
+            .set("order_hash", &event.order_hash)
+            .set("maker", &event.maker)
+            .set("taker", &event.taker)
+            .set("maker_asset_id", &event.maker_asset_id)
+            .set("taker_asset_id", &event.taker_asset_id)
+            .set("maker_amount_filled", &event.maker_amount_filled)
+            .set("taker_amount_filled", &event.taker_amount_filled)
+            .set("fee", &event.fee)
+            .set("side", &event.side)
+            .set("price", &event.price)
+            .set("block_number", event.block_number.to_string());
+    }
+
+    // Market orderbooks → market_orderbooks table (UPSERT for aggregated data)
+    for orderbook in &market_orderbooks.orderbooks {
+        tables
+            .update_row("market_orderbooks", &orderbook.id)
+            .set("condition_id", &orderbook.condition_id)
+            .set("trades_quantity", orderbook.trades_quantity.to_string())
+            .set("buys_quantity", orderbook.buys_quantity.to_string())
+            .set("sells_quantity", orderbook.sells_quantity.to_string())
+            .set("collateral_volume", &orderbook.collateral_volume)
+            .set("average_trade_size", &orderbook.average_trade_size)
+            .set("total_fees", &orderbook.total_fees)
+            .set("mid_price", &orderbook.mid_price)
+            .set("last_updated_block", orderbook.last_updated_block.to_string());
+    }
+
+    // Trader accounts → trader_accounts table (UPSERT for aggregated data)
+    for account in &trader_accounts.accounts {
+        tables
+            .update_row("trader_accounts", &account.id)
+            .set("trades_quantity", account.trades_quantity.to_string())
+            .set("total_volume", &account.total_volume)
+            .set("total_fees", &account.total_fees)
+            .set("is_active", account.is_active.to_string())
+            .set("trader_type", &account.trader_type);
+    }
+
+    // Global stats → global_stats table (UPSERT single row)
+    tables
+        .update_row("global_stats", &global_stats.id)
+        .set("trades_quantity", global_stats.trades_quantity.to_string())
+        .set("buys_quantity", global_stats.buys_quantity.to_string())
+        .set("sells_quantity", global_stats.sells_quantity.to_string())
+        .set("collateral_volume", &global_stats.collateral_volume)
+        .set("total_fees", &global_stats.total_fees)
+        .set("average_trade_size", &global_stats.average_trade_size)
+        .set("platform_fee_revenue", &global_stats.platform_fee_revenue);
+
+    Ok(tables.to_database_changes())
 }
 
 // ============================================
