@@ -408,9 +408,9 @@ substreams run substreams.yaml map_all_order_fills \
 
 ---
 
-## Migrating from v0.3.0
+## Migrating from v0.3.1
 
-If you ran v0.3.0 against a live sink, follow these steps before pointing it at v0.4.0:
+If you ran v0.3.1 (or earlier) against a live sink, follow these steps before pointing it at v0.4.0:
 
 1. **Add the new columns** (defaults preserve v1 history):
    ```sql

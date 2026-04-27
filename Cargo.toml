@@ -1,6 +1,6 @@
 [package]
 name = "polymarket-orderbook-substreams"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Real-time orderbook analytics for Polymarket prediction markets"
 repository = "https://github.com/PaulieB14/polymarket-orderbook-substreams"
