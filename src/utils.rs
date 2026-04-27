@@ -61,3 +61,24 @@ pub fn extract_condition_id_from_str(asset_id: &str) -> String {
 pub fn timestamp_to_day(timestamp: u64) -> u64 {
     timestamp / 86400 // Convert seconds to days
 }
+
+/// Pick the non-zero asset ID as the token ID for a v1 OrderFilled event.
+/// V1 always emits collateral (0) on one side and the conditional token ID on the other.
+pub fn v1_token_id(maker_asset_id: &BigInt, taker_asset_id: &BigInt) -> String {
+    if taker_asset_id.to_string() == "0" {
+        maker_asset_id.to_string()
+    } else {
+        taker_asset_id.to_string()
+    }
+}
+
+/// Map a v2 (side, token_id) into v1-compatible (maker_asset_id, taker_asset_id).
+/// V2 BUY (side=0): maker pays collateral, receives tokens → maker_asset_id="0", taker_asset_id=token_id
+/// V2 SELL (side=1): maker pays tokens, receives collateral → maker_asset_id=token_id, taker_asset_id="0"
+pub fn v2_assets_from_side(side: u8, token_id: &str) -> (String, String) {
+    match side {
+        0 => ("0".to_string(), token_id.to_string()),
+        1 => (token_id.to_string(), "0".to_string()),
+        _ => (token_id.to_string(), "0".to_string()),
+    }
+}

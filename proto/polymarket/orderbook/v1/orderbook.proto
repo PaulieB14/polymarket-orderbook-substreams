@@ -41,7 +41,14 @@ message OrderFilledEvent {
   uint64 block_number = 12;
   string side = 13;
   string price = 14;
-  uint64 ordinal = 15; // For deterministic ordering
+  uint64 ordinal = 15;
+
+  // V2 additions (empty/zero for v1 fills)
+  string exchange_version = 16; // "v1" | "v2"
+  string token_id = 17;         // single token ID emitted by v2 OrderFilled
+  uint32 side_raw = 18;         // v2 side enum: 0=BUY, 1=SELL
+  string builder = 19;          // bytes32 builder code (v2 only)
+  string metadata = 20;         // bytes32 metadata (v2 only)
 }
 
 message OrdersMatchedEvent {
@@ -53,6 +60,13 @@ message OrdersMatchedEvent {
   string taker_amount_filled = 6;
   uint64 block_number = 7;
   uint64 ordinal = 8;
+
+  // V2 additions
+  string exchange_version = 9;     // "v1" | "v2"
+  string taker_order_hash = 10;    // v2: takerOrderHash (indexed)
+  string taker_order_maker = 11;   // v2: takerOrderMaker (indexed)
+  string token_id = 12;            // v2: single tokenId
+  uint32 side_raw = 13;            // v2: side enum
 }
 
 // Enhanced market orderbook with more analytics

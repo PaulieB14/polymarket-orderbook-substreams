@@ -22,7 +22,7 @@ use pb::polymarket::orderbook::v1::{
 
 substreams_ethereum::init!();
 
-/// Extract OrderFilled events from CTF Exchange
+/// Extract OrderFilled events from CTF Exchange (v1)
 #[substreams::handlers::map]
 pub fn map_ctf_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvents, substreams::errors::Error> {
     let mut events = vec![];
@@ -30,7 +30,6 @@ pub fn map_ctf_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvent
     for trx in &blk.transaction_traces {
         for call in &trx.calls {
             for log in &call.logs {
-                // CTF Exchange contract address
                 if log.address != Hex::decode("4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e").unwrap() {
                     continue;
                 }
@@ -62,6 +61,11 @@ pub fn map_ctf_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvent
                         ),
                         price: utils::calculate_price(&event.maker_amount_filled, &event.taker_amount_filled).to_string(),
                         ordinal: log.ordinal,
+                        exchange_version: "v1".to_string(),
+                        token_id: utils::v1_token_id(&event.maker_asset_id, &event.taker_asset_id),
+                        side_raw: 0,
+                        builder: String::new(),
+                        metadata: String::new(),
                     });
                 }
             }
@@ -79,7 +83,7 @@ pub fn map_ctf_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvent
     })
 }
 
-/// Extract OrderFilled events from Neg Risk Exchange
+/// Extract OrderFilled events from Neg Risk Exchange (v1)
 #[substreams::handlers::map]
 pub fn map_neg_risk_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvents, substreams::errors::Error> {
     let mut events = vec![];
@@ -87,7 +91,6 @@ pub fn map_neg_risk_exchange_order_filled(blk: eth::Block) -> Result<OrderFilled
     for trx in &blk.transaction_traces {
         for call in &trx.calls {
             for log in &call.logs {
-                // Neg Risk Exchange contract address
                 if log.address != Hex::decode("C5d563A36AE78145C45a50134d48A1215220f80a").unwrap() {
                     continue;
                 }
@@ -119,6 +122,11 @@ pub fn map_neg_risk_exchange_order_filled(blk: eth::Block) -> Result<OrderFilled
                         ),
                         price: utils::calculate_price(&event.maker_amount_filled, &event.taker_amount_filled).to_string(),
                         ordinal: log.ordinal,
+                        exchange_version: "v1".to_string(),
+                        token_id: utils::v1_token_id(&event.maker_asset_id, &event.taker_asset_id),
+                        side_raw: 0,
+                        builder: String::new(),
+                        metadata: String::new(),
                     });
                 }
             }
@@ -136,7 +144,141 @@ pub fn map_neg_risk_exchange_order_filled(blk: eth::Block) -> Result<OrderFilled
     })
 }
 
-/// Extract OrdersMatched events from CTF Exchange
+/// Extract OrderFilled events from CTF Exchange V2 (deployed block 84902353)
+#[substreams::handlers::map]
+pub fn map_ctf_exchange_v2_order_filled(blk: eth::Block) -> Result<OrderFilledEvents, substreams::errors::Error> {
+    extract_v2_order_filled(
+        &blk,
+        &Hex::decode("E111180000d2663C0091e4f400237545B87B996B").unwrap(),
+        |log| abi::ctf_exchange_v2::events::OrderFilled::match_and_decode(log),
+    )
+}
+
+/// Extract OrderFilled events from Neg Risk CTF Exchange V2
+#[substreams::handlers::map]
+pub fn map_neg_risk_exchange_v2_order_filled(blk: eth::Block) -> Result<OrderFilledEvents, substreams::errors::Error> {
+    extract_v2_order_filled(
+        &blk,
+        &Hex::decode("e2222d279d744050d28e00520010520000310F59").unwrap(),
+        |log| abi::neg_risk_exchange_v2::events::OrderFilled::match_and_decode(log),
+    )
+}
+
+/// Generic v2 OrderFilled extractor (CTF and Neg Risk share an identical event shape)
+fn extract_v2_order_filled<F, E>(
+    blk: &eth::Block,
+    contract_address: &[u8],
+    decode: F,
+) -> Result<OrderFilledEvents, substreams::errors::Error>
+where
+    F: Fn(&eth::Log) -> Option<E>,
+    E: V2OrderFilled,
+{
+    let mut events = vec![];
+
+    for trx in &blk.transaction_traces {
+        for call in &trx.calls {
+            for log in &call.logs {
+                if log.address != contract_address {
+                    continue;
+                }
+
+                if let Some(event) = decode(log) {
+                    let order_hash = event.order_hash();
+                    let order_id = utils::generate_order_id(&Hex::encode(&trx.hash), &Hex::encode(order_hash));
+                    let token_id = event.token_id().to_string();
+                    let side_raw = event.side();
+                    let (maker_asset_id, taker_asset_id) = utils::v2_assets_from_side(side_raw, &token_id);
+                    let side_str = match side_raw {
+                        0 => "buy",
+                        1 => "sell",
+                        _ => "unknown",
+                    }
+                    .to_string();
+
+                    events.push(OrderFilledEvent {
+                        id: order_id,
+                        transaction_hash: Hex::encode(&trx.hash),
+                        timestamp: Some(Timestamp {
+                            seconds: blk.timestamp_seconds() as i64,
+                            nanos: 0,
+                        }),
+                        order_hash: Hex::encode(order_hash),
+                        maker: Hex::encode(event.maker()),
+                        taker: Hex::encode(event.taker()),
+                        maker_asset_id,
+                        taker_asset_id,
+                        maker_amount_filled: event.maker_amount_filled().to_string(),
+                        taker_amount_filled: event.taker_amount_filled().to_string(),
+                        fee: event.fee().to_string(),
+                        block_number: blk.number,
+                        side: side_str,
+                        price: utils::calculate_price(event.maker_amount_filled(), event.taker_amount_filled()).to_string(),
+                        ordinal: log.ordinal,
+                        exchange_version: "v2".to_string(),
+                        token_id,
+                        side_raw: side_raw as u32,
+                        builder: Hex::encode(event.builder()),
+                        metadata: Hex::encode(event.metadata()),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(OrderFilledEvents {
+        events,
+        block_number: blk.number,
+        block_hash: Hex::encode(&blk.hash),
+        timestamp: Some(Timestamp {
+            seconds: blk.timestamp_seconds() as i64,
+            nanos: 0,
+        }),
+    })
+}
+
+/// Trait that abstracts over the two structurally-identical v2 OrderFilled types
+/// (Abigen generates a distinct struct per ABI even when fields match).
+trait V2OrderFilled {
+    fn order_hash(&self) -> &[u8];
+    fn maker(&self) -> &[u8];
+    fn taker(&self) -> &[u8];
+    fn side(&self) -> u8;
+    fn token_id(&self) -> &substreams::scalar::BigInt;
+    fn maker_amount_filled(&self) -> &substreams::scalar::BigInt;
+    fn taker_amount_filled(&self) -> &substreams::scalar::BigInt;
+    fn fee(&self) -> &substreams::scalar::BigInt;
+    fn builder(&self) -> &[u8];
+    fn metadata(&self) -> &[u8];
+}
+
+impl V2OrderFilled for abi::ctf_exchange_v2::events::OrderFilled {
+    fn order_hash(&self) -> &[u8] { &self.order_hash }
+    fn maker(&self) -> &[u8] { &self.maker }
+    fn taker(&self) -> &[u8] { &self.taker }
+    fn side(&self) -> u8 { self.side.to_u64() as u8 }
+    fn token_id(&self) -> &substreams::scalar::BigInt { &self.token_id }
+    fn maker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.maker_amount_filled }
+    fn taker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.taker_amount_filled }
+    fn fee(&self) -> &substreams::scalar::BigInt { &self.fee }
+    fn builder(&self) -> &[u8] { &self.builder }
+    fn metadata(&self) -> &[u8] { &self.metadata }
+}
+
+impl V2OrderFilled for abi::neg_risk_exchange_v2::events::OrderFilled {
+    fn order_hash(&self) -> &[u8] { &self.order_hash }
+    fn maker(&self) -> &[u8] { &self.maker }
+    fn taker(&self) -> &[u8] { &self.taker }
+    fn side(&self) -> u8 { self.side.to_u64() as u8 }
+    fn token_id(&self) -> &substreams::scalar::BigInt { &self.token_id }
+    fn maker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.maker_amount_filled }
+    fn taker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.taker_amount_filled }
+    fn fee(&self) -> &substreams::scalar::BigInt { &self.fee }
+    fn builder(&self) -> &[u8] { &self.builder }
+    fn metadata(&self) -> &[u8] { &self.metadata }
+}
+
+/// Extract OrdersMatched events from CTF Exchange (v1)
 #[substreams::handlers::map]
 pub fn map_ctf_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMatchedEvents, substreams::errors::Error> {
     let mut events = vec![];
@@ -144,27 +286,16 @@ pub fn map_ctf_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMatchedE
     for trx in &blk.transaction_traces {
         for call in &trx.calls {
             for log in &call.logs {
-                // CTF Exchange contract address
                 if log.address != Hex::decode("4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e").unwrap() {
                     continue;
                 }
 
                 if let Some(event) = abi::ctf_exchange::events::OrdersMatched::match_and_decode(&log) {
-                    let event_id = format!("{}-{}", Hex::encode(&trx.hash), log.ordinal);
-
-                    events.push(OrdersMatchedEvent {
-                        id: event_id,
-                        timestamp: Some(Timestamp {
-                            seconds: blk.timestamp_seconds() as i64,
-                            nanos: 0,
-                        }),
-                        maker_asset_id: event.maker_asset_id.to_string(),
-                        taker_asset_id: event.taker_asset_id.to_string(),
-                        maker_amount_filled: event.maker_amount_filled.to_string(),
-                        taker_amount_filled: event.taker_amount_filled.to_string(),
-                        block_number: blk.number,
-                        ordinal: log.ordinal,
-                    });
+                    events.push(make_v1_orders_matched(&trx.hash, log.ordinal, blk.number, blk.timestamp_seconds(),
+                        event.maker_asset_id.to_string(),
+                        event.taker_asset_id.to_string(),
+                        event.maker_amount_filled.to_string(),
+                        event.taker_amount_filled.to_string()));
                 }
             }
         }
@@ -174,14 +305,11 @@ pub fn map_ctf_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMatchedE
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp {
-            seconds: blk.timestamp_seconds() as i64,
-            nanos: 0,
-        }),
+        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
     })
 }
 
-/// Extract OrdersMatched events from Neg Risk Exchange
+/// Extract OrdersMatched events from Neg Risk Exchange (v1)
 #[substreams::handlers::map]
 pub fn map_neg_risk_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMatchedEvents, substreams::errors::Error> {
     let mut events = vec![];
@@ -189,26 +317,113 @@ pub fn map_neg_risk_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMat
     for trx in &blk.transaction_traces {
         for call in &trx.calls {
             for log in &call.logs {
-                // Neg Risk Exchange contract address
                 if log.address != Hex::decode("C5d563A36AE78145C45a50134d48A1215220f80a").unwrap() {
                     continue;
                 }
 
                 if let Some(event) = abi::neg_risk_exchange::events::OrdersMatched::match_and_decode(&log) {
-                    let event_id = format!("{}-{}", Hex::encode(&trx.hash), log.ordinal);
+                    events.push(make_v1_orders_matched(&trx.hash, log.ordinal, blk.number, blk.timestamp_seconds(),
+                        event.maker_asset_id.to_string(),
+                        event.taker_asset_id.to_string(),
+                        event.maker_amount_filled.to_string(),
+                        event.taker_amount_filled.to_string()));
+                }
+            }
+        }
+    }
+
+    Ok(OrdersMatchedEvents {
+        events,
+        block_number: blk.number,
+        block_hash: Hex::encode(&blk.hash),
+        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
+    })
+}
+
+fn make_v1_orders_matched(
+    tx_hash: &[u8],
+    ordinal: u64,
+    block_number: u64,
+    block_ts: u64,
+    maker_asset_id: String,
+    taker_asset_id: String,
+    maker_amount_filled: String,
+    taker_amount_filled: String,
+) -> OrdersMatchedEvent {
+    OrdersMatchedEvent {
+        id: format!("{}-{}", Hex::encode(tx_hash), ordinal),
+        timestamp: Some(Timestamp { seconds: block_ts as i64, nanos: 0 }),
+        maker_asset_id,
+        taker_asset_id,
+        maker_amount_filled,
+        taker_amount_filled,
+        block_number,
+        ordinal,
+        exchange_version: "v1".to_string(),
+        taker_order_hash: String::new(),
+        taker_order_maker: String::new(),
+        token_id: String::new(),
+        side_raw: 0,
+    }
+}
+
+/// Extract OrdersMatched events from CTF Exchange V2
+#[substreams::handlers::map]
+pub fn map_ctf_exchange_v2_orders_matched(blk: eth::Block) -> Result<OrdersMatchedEvents, substreams::errors::Error> {
+    extract_v2_orders_matched(
+        &blk,
+        &Hex::decode("E111180000d2663C0091e4f400237545B87B996B").unwrap(),
+        |log| abi::ctf_exchange_v2::events::OrdersMatched::match_and_decode(log),
+    )
+}
+
+/// Extract OrdersMatched events from Neg Risk CTF Exchange V2
+#[substreams::handlers::map]
+pub fn map_neg_risk_exchange_v2_orders_matched(blk: eth::Block) -> Result<OrdersMatchedEvents, substreams::errors::Error> {
+    extract_v2_orders_matched(
+        &blk,
+        &Hex::decode("e2222d279d744050d28e00520010520000310F59").unwrap(),
+        |log| abi::neg_risk_exchange_v2::events::OrdersMatched::match_and_decode(log),
+    )
+}
+
+fn extract_v2_orders_matched<F, E>(
+    blk: &eth::Block,
+    contract_address: &[u8],
+    decode: F,
+) -> Result<OrdersMatchedEvents, substreams::errors::Error>
+where
+    F: Fn(&eth::Log) -> Option<E>,
+    E: V2OrdersMatched,
+{
+    let mut events = vec![];
+
+    for trx in &blk.transaction_traces {
+        for call in &trx.calls {
+            for log in &call.logs {
+                if log.address != contract_address {
+                    continue;
+                }
+
+                if let Some(event) = decode(log) {
+                    let token_id = event.token_id().to_string();
+                    let side_raw = event.side();
+                    let (maker_asset_id, taker_asset_id) = utils::v2_assets_from_side(side_raw, &token_id);
 
                     events.push(OrdersMatchedEvent {
-                        id: event_id,
-                        timestamp: Some(Timestamp {
-                            seconds: blk.timestamp_seconds() as i64,
-                            nanos: 0,
-                        }),
-                        maker_asset_id: event.maker_asset_id.to_string(),
-                        taker_asset_id: event.taker_asset_id.to_string(),
-                        maker_amount_filled: event.maker_amount_filled.to_string(),
-                        taker_amount_filled: event.taker_amount_filled.to_string(),
+                        id: format!("{}-{}", Hex::encode(&trx.hash), log.ordinal),
+                        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
+                        maker_asset_id,
+                        taker_asset_id,
+                        maker_amount_filled: event.maker_amount_filled().to_string(),
+                        taker_amount_filled: event.taker_amount_filled().to_string(),
                         block_number: blk.number,
                         ordinal: log.ordinal,
+                        exchange_version: "v2".to_string(),
+                        taker_order_hash: Hex::encode(event.taker_order_hash()),
+                        taker_order_maker: Hex::encode(event.taker_order_maker()),
+                        token_id,
+                        side_raw: side_raw as u32,
                     });
                 }
             }
@@ -219,27 +434,54 @@ pub fn map_neg_risk_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMat
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp {
-            seconds: blk.timestamp_seconds() as i64,
-            nanos: 0,
-        }),
+        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
     })
+}
+
+trait V2OrdersMatched {
+    fn taker_order_hash(&self) -> &[u8];
+    fn taker_order_maker(&self) -> &[u8];
+    fn side(&self) -> u8;
+    fn token_id(&self) -> &substreams::scalar::BigInt;
+    fn maker_amount_filled(&self) -> &substreams::scalar::BigInt;
+    fn taker_amount_filled(&self) -> &substreams::scalar::BigInt;
+}
+
+impl V2OrdersMatched for abi::ctf_exchange_v2::events::OrdersMatched {
+    fn taker_order_hash(&self) -> &[u8] { &self.taker_order_hash }
+    fn taker_order_maker(&self) -> &[u8] { &self.taker_order_maker }
+    fn side(&self) -> u8 { self.side.to_u64() as u8 }
+    fn token_id(&self) -> &substreams::scalar::BigInt { &self.token_id }
+    fn maker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.maker_amount_filled }
+    fn taker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.taker_amount_filled }
+}
+
+impl V2OrdersMatched for abi::neg_risk_exchange_v2::events::OrdersMatched {
+    fn taker_order_hash(&self) -> &[u8] { &self.taker_order_hash }
+    fn taker_order_maker(&self) -> &[u8] { &self.taker_order_maker }
+    fn side(&self) -> u8 { self.side.to_u64() as u8 }
+    fn token_id(&self) -> &substreams::scalar::BigInt { &self.token_id }
+    fn maker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.maker_amount_filled }
+    fn taker_amount_filled(&self) -> &substreams::scalar::BigInt { &self.taker_amount_filled }
 }
 
 // ============================================
 // Combined Events Module (Layer 1.5)
 // ============================================
 
-/// Combines order fills from both CTF Exchange and Neg Risk Exchange
+/// Combines order fills from v1 + v2 CTF and Neg Risk exchanges into a single stream.
 #[substreams::handlers::map]
 pub fn map_all_order_fills(
     ctf_fills: OrderFilledEvents,
     neg_risk_fills: OrderFilledEvents,
+    ctf_v2_fills: OrderFilledEvents,
+    neg_risk_v2_fills: OrderFilledEvents,
 ) -> Result<OrderFilledEvents, substreams::errors::Error> {
     let mut all_events = ctf_fills.events;
     all_events.extend(neg_risk_fills.events);
+    all_events.extend(ctf_v2_fills.events);
+    all_events.extend(neg_risk_v2_fills.events);
 
-    // Sort by ordinal for deterministic ordering
     all_events.sort_by_key(|e| e.ordinal);
 
     Ok(OrderFilledEvents {
@@ -489,7 +731,12 @@ pub fn db_out(
             .set("fee", &event.fee)
             .set("side", &event.side)
             .set("price", &event.price)
-            .set("block_number", event.block_number.to_string());
+            .set("block_number", event.block_number.to_string())
+            .set("exchange_version", &event.exchange_version)
+            .set("token_id", &event.token_id)
+            .set("side_raw", event.side_raw.to_string())
+            .set("builder", &event.builder)
+            .set("metadata", &event.metadata);
     }
 
     // Market orderbooks → market_orderbooks table (UPSERT for aggregated data)

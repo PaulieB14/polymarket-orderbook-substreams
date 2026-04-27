@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: polymarket_orderbook_substreams
-  version: v0.3.0
+  version: v0.4.0
   url: https://github.com/PaulieB14/polymarket-orderbook-substreams
   image: ./download.png
   doc: |
@@ -10,10 +10,11 @@ package:
     Real-time orderbook event extraction for Polymarket prediction markets on Polygon.
 
     Features:
-    - Order fill extraction from CTF Exchange and Neg Risk Exchange
-    - Orders matched event tracking
-    - Combined order flow stream from both exchanges
-    - Price calculation and trade side determination
+    - Order fill extraction from CTF Exchange and Neg Risk Exchange (v1 + v2)
+    - Orders matched event tracking across both v1 and v2 contracts
+    - Unified order flow stream spanning the 2026-04-28 v2 cutover
+    - Price calculation and explicit trade side from v2 `side` enum
+    - V2 builder attribution and metadata surfaced as columns
 
     SQL schemas included for PostgreSQL and Clickhouse persistence.
 
@@ -83,6 +84,48 @@ modules:
     doc: Extracts OrdersMatched events from Neg Risk Exchange.
 
   # ============================================
+  # V2 Event Extraction (deployed 2026-03-31, cutover 2026-04-28)
+  # ============================================
+
+  - name: map_ctf_exchange_v2_order_filled
+    kind: map
+    initialBlock: 84902353
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrderFilledEvents
+    doc: |
+      Extracts OrderFilled events from CTF Exchange V2 (0xE111180000d2663C0091e4f400237545B87B996B).
+      V2 events emit explicit side, single tokenId, plus builder/metadata fields.
+
+  - name: map_neg_risk_exchange_v2_order_filled
+    kind: map
+    initialBlock: 84902353
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrderFilledEvents
+    doc: Extracts OrderFilled events from Neg Risk CTF Exchange V2 (0xe2222d279d744050d28e00520010520000310F59).
+
+  - name: map_ctf_exchange_v2_orders_matched
+    kind: map
+    initialBlock: 84902353
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
+    doc: Extracts OrdersMatched events from CTF Exchange V2.
+
+  - name: map_neg_risk_exchange_v2_orders_matched
+    kind: map
+    initialBlock: 84902353
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
+    doc: Extracts OrdersMatched events from Neg Risk CTF Exchange V2.
+
+  # ============================================
   # Combined Events Module (Layer 1.5)
   # ============================================
 
@@ -92,11 +135,13 @@ modules:
     inputs:
       - map: map_ctf_exchange_order_filled
       - map: map_neg_risk_exchange_order_filled
+      - map: map_ctf_exchange_v2_order_filled
+      - map: map_neg_risk_exchange_v2_order_filled
     output:
       type: proto:polymarket.orderbook.v1.OrderFilledEvents
     doc: |
-      Combines order fills from both exchanges into a single stream.
-      Use this module for unified order flow analysis.
+      Combines order fills from v1 and v2 CTF Exchange + Neg Risk into a single stream.
+      Use this module for unified order flow analysis spanning the v2 cutover.
 
   # ============================================
   # Foundational Stores (Layer 2)

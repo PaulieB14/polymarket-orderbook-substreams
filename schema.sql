@@ -1,8 +1,8 @@
 -- Polymarket Orderbook Substreams - PostgreSQL Schema
--- Version: 0.2.0
+-- Version: 0.4.0 (CLOB v2 support)
 
 -- Order Fills Table
--- Stores individual order fill events from both CTF and Neg Risk exchanges
+-- Stores individual order fill events from both CTF and Neg Risk exchanges (v1 + v2)
 CREATE TABLE IF NOT EXISTS order_fills (
     id VARCHAR PRIMARY KEY,
     transaction_hash VARCHAR(66) NOT NULL,
@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS order_fills (
     side VARCHAR(10) NOT NULL,
     price NUMERIC(38, 18) NOT NULL,
     block_number BIGINT NOT NULL,
+    -- V2 additions
+    exchange_version VARCHAR(4) NOT NULL DEFAULT 'v1',
+    token_id VARCHAR,            -- conditional token ID (v1: derived; v2: emitted directly)
+    side_raw SMALLINT NOT NULL DEFAULT 0,
+    builder VARCHAR(66),         -- bytes32 builder code (v2 only, hex-encoded)
+    metadata VARCHAR(66),        -- bytes32 metadata (v2 only, hex-encoded)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -26,6 +32,9 @@ CREATE INDEX IF NOT EXISTS idx_order_fills_maker ON order_fills(maker);
 CREATE INDEX IF NOT EXISTS idx_order_fills_taker ON order_fills(taker);
 CREATE INDEX IF NOT EXISTS idx_order_fills_maker_asset ON order_fills(maker_asset_id);
 CREATE INDEX IF NOT EXISTS idx_order_fills_tx_hash ON order_fills(transaction_hash);
+CREATE INDEX IF NOT EXISTS idx_order_fills_token_id ON order_fills(token_id);
+CREATE INDEX IF NOT EXISTS idx_order_fills_version ON order_fills(exchange_version);
+CREATE INDEX IF NOT EXISTS idx_order_fills_builder ON order_fills(builder) WHERE builder IS NOT NULL;
 
 -- Market Orderbooks Table
 -- Aggregated market-level statistics

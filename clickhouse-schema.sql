@@ -1,5 +1,5 @@
 -- Polymarket Orderbook Substreams - Clickhouse Schema
--- Version: 0.2.0
+-- Version: 0.4.0 (CLOB v2 support)
 -- Optimized for high-performance analytics queries
 
 -- Order Fills Table
@@ -19,6 +19,13 @@ CREATE TABLE IF NOT EXISTS order_fills (
     fee UInt256,
     side LowCardinality(String),
     price Decimal(38, 18),
+
+    -- V2 additions
+    exchange_version LowCardinality(String) DEFAULT 'v1',
+    token_id String,
+    side_raw UInt8,
+    builder String,
+    metadata String,
 
     -- Materialized columns for analytics
     date Date MATERIALIZED toDate(block_timestamp),

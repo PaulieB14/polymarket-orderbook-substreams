@@ -9,8 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://substreams.dev/packages/polymarket-orderbook-substreams/v0.3.0">
-    <img src="https://img.shields.io/badge/substreams.dev-v0.3.0-blue" alt="Substreams Package"/>
+  <a href="https://substreams.dev/packages/polymarket-orderbook-substreams/v0.4.0">
+    <img src="https://img.shields.io/badge/substreams.dev-v0.4.0-blue" alt="Substreams Package"/>
+  </a>
+  <a href="https://docs.polymarket.com/v2-migration">
+    <img src="https://img.shields.io/badge/CLOB-v1%20%2B%20v2-brightgreen" alt="CLOB v1+v2"/>
   </a>
   <a href="https://polygon.technology/">
     <img src="https://img.shields.io/badge/network-Polygon-8247E5" alt="Polygon"/>
@@ -30,14 +33,26 @@
 
 ## Overview
 
-High-performance Substreams modules for extracting, processing, and persisting orderbook events from Polymarket's CTF Exchange and Neg Risk Exchange contracts on Polygon. Built with foundational stores for efficient parallel execution and includes ready-to-use SQL and Clickhouse sinks.
+High-performance Substreams modules for extracting, processing, and persisting orderbook events from Polymarket's CTF Exchange and Neg Risk Exchange contracts on Polygon — across **both CLOB v1 and CLOB v2**. Built with foundational stores for efficient parallel execution and ready-to-use SQL and Clickhouse sinks.
+
+### CLOB v2 ready (since v0.4.0)
+
+Polymarket cut over to [CLOB v2](https://docs.polymarket.com/v2-migration) on **2026-04-28**, deploying new Exchange contracts with a redesigned `OrderFilled` event (single `tokenId` plus explicit `side` enum, builder attribution, metadata). This package indexes both contract generations side-by-side:
+
+- **v1 contracts** keep streaming through the cutover for historical fidelity (start block: 57,000,000).
+- **v2 contracts** activate at the deploy block (84,902,353, 2026-03-31).
+- `map_all_order_fills` merges both streams into a single ordered output, so downstream consumers see one continuous orderflow spanning the migration.
+- A new `exchange_version` column ("v1" | "v2") on every fill lets you filter, partition, or compare.
+- v2-only fields (`token_id`, `builder`, `metadata`, `side_raw`) are surfaced as first-class columns; legacy `maker_asset_id`/`taker_asset_id` are populated for v2 fills using the `(side, tokenId)` mapping so existing queries keep working unchanged.
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **Dual Exchange Support** | Tracks both CTF Exchange and Neg Risk Exchange contracts |
-| **Order Fill Events** | Detailed trade execution data with price calculations |
+| **CLOB v1 + v2** | Indexes both legacy and new Exchange contracts in a single unified stream |
+| **Dual Exchange Support** | Tracks CTF Exchange and Neg Risk Exchange on each generation |
+| **Order Fill Events** | Trade execution data with price calculations and authoritative v2 `side` |
+| **Builder Attribution** | v2 `builder` and `metadata` (bytes32) surfaced as columns |
 | **Market Analytics** | Volume, trades, buy/sell ratios, average trade sizes |
 | **Trader Analytics** | Per-trader volume, trade counts, activity tracking |
 | **Global Statistics** | Platform-wide metrics and fee revenue |
@@ -62,19 +77,19 @@ substreams auth
 
 ```bash
 # Stream all order fills from both exchanges
-substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
   map_all_order_fills \
   -e polygon.substreams.pinax.network:443 \
   -s 57000000 -t +1000
 
 # Stream market analytics
-substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
   map_market_orderbooks \
   -e polygon.substreams.pinax.network:443 \
   -s 57000000 -t +1000
 
 # Stream global platform stats
-substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
   map_global_orderbook_stats \
   -e polygon.substreams.pinax.network:443 \
   -s 57000000 -t +1000
@@ -137,20 +152,29 @@ substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.
 
 ## Modules
 
-### Layer 1: Event Extraction
+### Layer 1: Event Extraction (CLOB v1 — pre-cutover history)
 
-| Module | Description |
-|--------|-------------|
-| `map_ctf_exchange_order_filled` | Extracts OrderFilled events from CTF Exchange |
-| `map_neg_risk_exchange_order_filled` | Extracts OrderFilled events from Neg Risk Exchange |
-| `map_ctf_exchange_orders_matched` | Extracts OrdersMatched events from CTF Exchange |
-| `map_neg_risk_exchange_orders_matched` | Extracts OrdersMatched events from Neg Risk Exchange |
+| Module | Description | Initial Block |
+|--------|-------------|--------------:|
+| `map_ctf_exchange_order_filled` | OrderFilled events from CTF Exchange v1 | 57,000,000 |
+| `map_neg_risk_exchange_order_filled` | OrderFilled events from Neg Risk Exchange v1 | 57,000,000 |
+| `map_ctf_exchange_orders_matched` | OrdersMatched events from CTF Exchange v1 | 57,000,000 |
+| `map_neg_risk_exchange_orders_matched` | OrdersMatched events from Neg Risk Exchange v1 | 57,000,000 |
+
+### Layer 1: Event Extraction (CLOB v2 — deployed 2026-03-31, cutover 2026-04-28)
+
+| Module | Description | Initial Block |
+|--------|-------------|--------------:|
+| `map_ctf_exchange_v2_order_filled` | OrderFilled events from CTF Exchange V2 | 84,902,353 |
+| `map_neg_risk_exchange_v2_order_filled` | OrderFilled events from Neg Risk CTF Exchange V2 | 84,902,353 |
+| `map_ctf_exchange_v2_orders_matched` | OrdersMatched events from CTF Exchange V2 | 84,902,353 |
+| `map_neg_risk_exchange_v2_orders_matched` | OrdersMatched events from Neg Risk CTF Exchange V2 | 84,902,353 |
 
 ### Layer 1.5: Combined Events
 
 | Module | Description |
 |--------|-------------|
-| `map_all_order_fills` | Combines order fills from both exchanges into unified stream |
+| `map_all_order_fills` | Merges v1 + v2 fills from CTF and Neg Risk into a single ordinal-sorted stream |
 
 ### Layer 2: Foundational Stores
 
@@ -192,12 +216,12 @@ psql -d polymarket_orderbook -f schema.sql
 # Setup sink
 substreams-sink-sql setup \
   "psql://user:pass@localhost:5432/polymarket_orderbook?sslmode=disable" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg
 
 # Run sink
 substreams-sink-sql run \
   "psql://user:pass@localhost:5432/polymarket_orderbook?sslmode=disable" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
   -e polygon.substreams.pinax.network:443
 ```
 
@@ -239,12 +263,12 @@ clickhouse-client -d polymarket_orderbook < clickhouse-schema.sql
 # Setup sink
 substreams-sink-sql setup \
   "clickhouse://default:@localhost:9000/polymarket_orderbook" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg
 
 # Run sink
 substreams-sink-sql run \
   "clickhouse://default:@localhost:9000/polymarket_orderbook" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
   -e polygon.substreams.pinax.network:443
 ```
 
@@ -297,14 +321,19 @@ ORDER BY hour;
 | `order_hash` | string | Order hash |
 | `maker` | string | Maker address |
 | `taker` | string | Taker address |
-| `maker_asset_id` | string | Maker's asset token ID |
-| `taker_asset_id` | string | Taker's asset token ID |
+| `maker_asset_id` | string | Maker's asset token ID (v2: derived from `side`+`token_id` for backward compat) |
+| `taker_asset_id` | string | Taker's asset token ID (v2: derived from `side`+`token_id`) |
 | `maker_amount_filled` | string | Amount filled for maker |
 | `taker_amount_filled` | string | Amount filled for taker |
-| `fee` | string | Transaction fee |
-| `side` | string | Trade side (buy/sell) |
+| `fee` | string | Realized taker fee (v2 fees are protocol-determined at match time) |
+| `side` | string | Trade side string (`buy` / `sell`) |
 | `price` | string | Calculated execution price |
 | `block_number` | uint64 | Block number |
+| `exchange_version` | string | `"v1"` or `"v2"` — identifies which Exchange generation emitted the fill |
+| `token_id` | string | Conditional token ID (v1: derived non-zero asset; v2: emitted directly) |
+| `side_raw` | uint32 | v2 side enum: `0`=BUY, `1`=SELL (`0` for v1) |
+| `builder` | string | bytes32 builder attribution code, hex-encoded (v2 only; empty for v1) |
+| `metadata` | string | bytes32 order metadata, hex-encoded (v2 only; empty for v1) |
 
 ### MarketOrderbook
 
@@ -323,10 +352,21 @@ ORDER BY hour;
 
 ## Contract Addresses
 
-| Contract | Address | Description |
-|----------|---------|-------------|
-| CTF Exchange | `0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e` | Main prediction market exchange |
-| Neg Risk Exchange | `0xC5d563A36AE78145C45a50134d48A1215220f80a` | Negative risk market exchange |
+### CLOB v1 (legacy — historical fills only after the 2026-04-28 cutover)
+
+| Contract | Address |
+|----------|---------|
+| CTF Exchange v1 | `0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e` |
+| Neg Risk Exchange v1 | `0xC5d563A36AE78145C45a50134d48A1215220f80a` |
+
+### CLOB v2 (deployed 2026-03-31 by Polymarket Deployer 1)
+
+| Contract | Address |
+|----------|---------|
+| CTF Exchange V2 | `0xE111180000d2663C0091e4f400237545B87B996B` |
+| Neg Risk CTF Exchange V2 | `0xe2222d279d744050d28e00520010520000310F59` |
+
+V2 deploy block: **84,902,353** · Cutover: **2026-04-28 ~11:00 UTC**
 
 ---
 
@@ -337,7 +377,7 @@ Import this package to build higher-level analytics:
 ```yaml
 # substreams.yaml
 imports:
-  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.3.0.spkg
+  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg
 
 modules:
   - name: my_analytics_module
@@ -368,11 +408,30 @@ substreams run substreams.yaml map_all_order_fills \
 
 ---
 
+## Migrating from v0.3.0
+
+If you ran v0.3.0 against a live sink, follow these steps before pointing it at v0.4.0:
+
+1. **Add the new columns** (defaults preserve v1 history):
+   ```sql
+   ALTER TABLE order_fills
+     ADD COLUMN exchange_version VARCHAR(4) NOT NULL DEFAULT 'v1',
+     ADD COLUMN token_id VARCHAR,
+     ADD COLUMN side_raw SMALLINT NOT NULL DEFAULT 0,
+     ADD COLUMN builder VARCHAR(66),
+     ADD COLUMN metadata VARCHAR(66);
+   CREATE INDEX idx_order_fills_token_id ON order_fills(token_id);
+   CREATE INDEX idx_order_fills_version ON order_fills(exchange_version);
+   ```
+2. **Re-point the sink at v0.4.0** — no resync required; v2 modules pick up at block 84,902,353 and v1 modules continue from your existing cursor.
+3. **Optional**: rebuild Clickhouse materialized views to aggregate by `token_id` instead of `maker_asset_id` (the v1 schema lumped all collateral=0 buys under one key).
+
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| Start Block | 57,000,000 (Polymarket launch) |
+| Start Block (v1) | 57,000,000 (Polymarket launch) |
+| Start Block (v2) | 84,902,353 (CLOB v2 deploy) |
 | Parallel Execution | Optimized with foundational stores |
 | Latency | Low latency with direct event extraction |
 | Sink Support | PostgreSQL, Clickhouse |

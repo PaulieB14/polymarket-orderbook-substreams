@@ -8,6 +8,8 @@ Cargo.lock
 /src/pb/
 /src/abi/ctf_exchange.rs
 /src/abi/neg_risk_exchange.rs
+/src/abi/ctf_exchange_v2.rs
+/src/abi/neg_risk_exchange_v2.rs
 
 # IDE
 .vscode/
