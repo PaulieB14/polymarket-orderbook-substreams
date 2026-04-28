@@ -35,15 +35,44 @@
 
 High-performance Substreams modules for extracting, processing, and persisting orderbook events from Polymarket's CTF Exchange and Neg Risk Exchange contracts on Polygon — across **both CLOB v1 and CLOB v2**. Built with foundational stores for efficient parallel execution and ready-to-use SQL and Clickhouse sinks.
 
-### CLOB v2 ready (since v0.4.0)
+---
 
-Polymarket cut over to [CLOB v2](https://docs.polymarket.com/v2-migration) on **2026-04-28**, deploying new Exchange contracts with a redesigned `OrderFilled` event (single `tokenId` plus explicit `side` enum, builder attribution, metadata). This package indexes both contract generations side-by-side:
+## CLOB v2 ready (since v0.4.0)
 
-- **v1 contracts** keep streaming through the cutover for historical fidelity (start block: 57,000,000).
-- **v2 contracts** activate at the deploy block (84,902,353, 2026-03-31).
-- `map_all_order_fills` merges both streams into a single ordered output, so downstream consumers see one continuous orderflow spanning the migration.
-- A new `exchange_version` column ("v1" | "v2") on every fill lets you filter, partition, or compare.
-- v2-only fields (`token_id`, `builder`, `metadata`, `side_raw`) are surfaced as first-class columns; legacy `maker_asset_id`/`taker_asset_id` are populated for v2 fills using the `(side, tokenId)` mapping so existing queries keep working unchanged.
+Polymarket migrated to [CLOB v2](https://docs.polymarket.com/v2-migration) at the **2026-04-28 ~11:00 UTC** cutover. v2 ships fresh Exchange contracts at new addresses, a redesigned `OrderFilled` event, a different fee model, and a new collateral wrapper (pUSD). This package indexes both contract generations side-by-side so a single output stream spans the migration without breaking existing consumers.
+
+### What changed in CLOB v2
+
+| Concept | CLOB v1 | CLOB v2 |
+|---------|---------|---------|
+| **Exchange contracts** | `0x4bfb…982e` (CTF) / `0xC5d5…f80a` (NegRisk) | `0xE111…996B` (CTF) / `0xe222…0F59` (NegRisk) — fresh deploys |
+| **Order uniqueness** | `nonce` per maker | `timestamp` (ms) — nonces removed |
+| **Order side** | Inferred from `makerAssetId == 0` | Explicit `side` enum on the order and event (`BUY=0`, `SELL=1`) |
+| **OrderFilled event** | 8 fields, including `makerAssetId` + `takerAssetId` | 10 fields: single `tokenId` + `side` + new `builder` (bytes32) + `metadata` (bytes32) |
+| **OrdersMatched event** | `makerAssetId` + `takerAssetId` + amounts | `takerOrderHash` (indexed) + `takerOrderMaker` (indexed) + `side` + `tokenId` + amounts |
+| **Fees** | Embedded in order (`feeRateBps`), maker + taker | Protocol-determined at match time, **taker only**, dynamic per market via `getClobMarketInfo()` |
+| **Collateral (wallet)** | USDC.e directly | **pUSD** — a 1:1-backed ERC-20 wrapper. USDC.e converts via `CollateralOnramp.wrap()` |
+| **Collateral (CTF level)** | USDC.e | USDC.e (unchanged — pUSD is purely wallet-facing) |
+| **Builder attribution** | HMAC headers on API orders | Single `builderCode` (bytes32) on the order, surfaced as `builder` on the event |
+| **EIP-712 domain version** | `"1"` | `"2"` for exchange signing (L1 API auth still `"1"`) |
+| **Open orders at cutover** | — | All wiped during the maintenance window |
+
+### How this package handles it
+
+1. **Parallel module set.** Four new map modules at `initialBlock: 84,902,353` (v2 deploy block) extract OrderFilled and OrdersMatched events from the two v2 Exchange contracts. The four legacy v1 modules continue at `initialBlock: 57,000,000` for full historical backfill.
+2. **Unified output.** `map_all_order_fills` merges all four fill streams (v1 CTF + v1 NegRisk + v2 CTF + v2 NegRisk) and sorts by ordinal, so downstream stores and analytics see one continuous order flow that spans the cutover with no gap.
+3. **`exchange_version` column.** Every `OrderFilledEvent` and `OrdersMatchedEvent` carries an `exchange_version` field (`"v1"` or `"v2"`) so you can filter, partition, or audit by generation.
+4. **v2-only fields surfaced.** `token_id`, `side_raw`, `builder`, and `metadata` are first-class columns on `order_fills` for v2 rows (empty / `0` for v1).
+5. **Backward-compat shape.** Legacy `maker_asset_id` / `taker_asset_id` fields are *populated for v2 fills* using the `(side, tokenId)` mapping (BUY: `maker="0"`, `taker=tokenId`; SELL: `maker=tokenId`, `taker="0"`). Existing queries that key on these fields — including the foundational stores and Clickhouse materialized views shipped here — keep working unchanged.
+6. **Authoritative side.** v2 ships the trade direction directly in the event (`side` enum). v0.4.0 uses this for v2 rows; v1 rows continue to use the legacy parity-based heuristic.
+7. **Fee column semantics.** v2 fees are taker-only and protocol-determined at match time; the same `fee` field surfaces a single realized taker fee.
+
+### What stays the same
+
+- Same chain (Polygon), same Firehose source.
+- Same `db_out` SQL/Clickhouse sink path.
+- Same start block for v1 history (57,000,000); v2 fills appear automatically at deploy block 84,902,353.
+- Same module names and proto field numbers — v0.4.0 is a strict superset of v0.3.1.
 
 ### Key Features
 
