@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://substreams.dev/packages/polymarket-orderbook-substreams/v0.4.0">
-    <img src="https://img.shields.io/badge/substreams.dev-v0.4.0-blue" alt="Substreams Package"/>
+  <a href="https://substreams.dev/packages/polymarket-orderbook-substreams/v0.5.0">
+    <img src="https://img.shields.io/badge/substreams.dev-v0.5.0-blue" alt="Substreams Package"/>
   </a>
   <a href="https://docs.polymarket.com/v2-migration">
     <img src="https://img.shields.io/badge/CLOB-v1%20%2B%20v2-brightgreen" alt="CLOB v1+v2"/>
@@ -106,19 +106,19 @@ substreams auth
 
 ```bash
 # Stream all order fills from both exchanges
-substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg \
   map_all_order_fills \
   -e polygon.substreams.pinax.network:443 \
   -s 57000000 -t +1000
 
 # Stream market analytics
-substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg \
   map_market_orderbooks \
   -e polygon.substreams.pinax.network:443 \
   -s 57000000 -t +1000
 
 # Stream global platform stats
-substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
+substreams run https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg \
   map_global_orderbook_stats \
   -e polygon.substreams.pinax.network:443 \
   -s 57000000 -t +1000
@@ -245,12 +245,12 @@ psql -d polymarket_orderbook -f schema.sql
 # Setup sink
 substreams-sink-sql setup \
   "psql://user:pass@localhost:5432/polymarket_orderbook?sslmode=disable" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg
 
 # Run sink
 substreams-sink-sql run \
   "psql://user:pass@localhost:5432/polymarket_orderbook?sslmode=disable" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg \
   -e polygon.substreams.pinax.network:443
 ```
 
@@ -292,12 +292,12 @@ clickhouse-client -d polymarket_orderbook < clickhouse-schema.sql
 # Setup sink
 substreams-sink-sql setup \
   "clickhouse://default:@localhost:9000/polymarket_orderbook" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg
 
 # Run sink
 substreams-sink-sql run \
   "clickhouse://default:@localhost:9000/polymarket_orderbook" \
-  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg \
+  https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg \
   -e polygon.substreams.pinax.network:443
 ```
 
@@ -406,7 +406,7 @@ Import this package to build higher-level analytics:
 ```yaml
 # substreams.yaml
 imports:
-  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.4.0.spkg
+  polymarket: https://spkg.io/PaulieB14/polymarket-orderbook-substreams-v0.5.0.spkg
 
 modules:
   - name: my_analytics_module
@@ -485,3 +485,7 @@ MIT License - see [LICENSE](LICENSE) for details.
   <strong>Built for the Polymarket community</strong><br/>
   <sub>Powered by StreamingFast Substreams</sub>
 </p>
+
+## Build notes
+
+Since this release the module is built with `substreams` 0.8 / buffa protobuf codegen (`substreams-ethereum` 0.12, `substreams-database-change` 5). Module outputs are identical to the previous release; `db_out` rows are the same, encoded with the v5 database-changes format (row ordinals + `update_op`). Build with `substreams build` (CLI >= 1.25). `src/pb` is generated.

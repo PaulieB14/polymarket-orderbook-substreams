@@ -1,6 +1,6 @@
 [package]
 name = "polymarket-orderbook-substreams"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "Real-time orderbook analytics for Polymarket prediction markets"
 repository = "https://github.com/PaulieB14/polymarket-orderbook-substreams"
@@ -11,18 +11,21 @@ name = "polymarket_orderbook_substreams"
 crate-type = ["cdylib"]
 
 [dependencies]
-substreams = "0.7"
-substreams-ethereum = "0.11"
+substreams = "0.8.0"
+substreams-ethereum = "0.12.0"
 hex-literal = "0.4"
 hex = "0.4"
-prost = "0.13"
-prost-types = "0.13"
+buffa = "0.9.2"
+buffa-types = "0.9.2"
 bigdecimal = "0.4"
 anyhow = "1.0"
 ethabi = "17.2"
 num-traits = "0.2"
-substreams-database-change = "4"
+substreams-database-change = "5.0.0"
+
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }
 
 [build-dependencies]
-substreams-ethereum = "0.11"
+substreams-ethereum = "0.12.0"
 anyhow = "1.0"

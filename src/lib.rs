@@ -4,7 +4,7 @@ use substreams_ethereum::pb::eth::v2 as eth;
 use substreams_ethereum::Event;
 use substreams_database_change::pb::sf::substreams::sink::database::v1::DatabaseChanges;
 use substreams_database_change::tables::Tables;
-use prost_types::Timestamp;
+use buffa_types::google::protobuf::Timestamp;
 use std::str::FromStr;
 use bigdecimal::BigDecimal;
 
@@ -40,10 +40,11 @@ pub fn map_ctf_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvent
                     events.push(OrderFilledEvent {
                         id: order_id,
                         transaction_hash: Hex::encode(&trx.hash),
-                        timestamp: Some(Timestamp {
+                        timestamp: Timestamp {
                             seconds: blk.timestamp_seconds() as i64,
                             nanos: 0,
-                        }),
+                            ..Default::default()
+                        }.into(),
                         order_hash: Hex::encode(&event.order_hash),
                         maker: Hex::encode(&event.maker),
                         taker: Hex::encode(&event.taker),
@@ -76,10 +77,11 @@ pub fn map_ctf_exchange_order_filled(blk: eth::Block) -> Result<OrderFilledEvent
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp {
+        timestamp: Timestamp {
             seconds: blk.timestamp_seconds() as i64,
             nanos: 0,
-        }),
+            ..Default::default()
+        }.into(),
     })
 }
 
@@ -101,10 +103,11 @@ pub fn map_neg_risk_exchange_order_filled(blk: eth::Block) -> Result<OrderFilled
                     events.push(OrderFilledEvent {
                         id: order_id,
                         transaction_hash: Hex::encode(&trx.hash),
-                        timestamp: Some(Timestamp {
+                        timestamp: Timestamp {
                             seconds: blk.timestamp_seconds() as i64,
                             nanos: 0,
-                        }),
+                            ..Default::default()
+                        }.into(),
                         order_hash: Hex::encode(&event.order_hash),
                         maker: Hex::encode(&event.maker),
                         taker: Hex::encode(&event.taker),
@@ -137,10 +140,11 @@ pub fn map_neg_risk_exchange_order_filled(blk: eth::Block) -> Result<OrderFilled
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp {
+        timestamp: Timestamp {
             seconds: blk.timestamp_seconds() as i64,
             nanos: 0,
-        }),
+            ..Default::default()
+        }.into(),
     })
 }
 
@@ -199,10 +203,11 @@ where
                     events.push(OrderFilledEvent {
                         id: order_id,
                         transaction_hash: Hex::encode(&trx.hash),
-                        timestamp: Some(Timestamp {
+                        timestamp: Timestamp {
                             seconds: blk.timestamp_seconds() as i64,
                             nanos: 0,
-                        }),
+                            ..Default::default()
+                        }.into(),
                         order_hash: Hex::encode(order_hash),
                         maker: Hex::encode(event.maker()),
                         taker: Hex::encode(event.taker()),
@@ -230,10 +235,11 @@ where
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp {
+        timestamp: Timestamp {
             seconds: blk.timestamp_seconds() as i64,
             nanos: 0,
-        }),
+            ..Default::default()
+        }.into(),
     })
 }
 
@@ -305,7 +311,7 @@ pub fn map_ctf_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMatchedE
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
+        timestamp: Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0, ..Default::default() }.into(),
     })
 }
 
@@ -336,7 +342,7 @@ pub fn map_neg_risk_exchange_orders_matched(blk: eth::Block) -> Result<OrdersMat
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
+        timestamp: Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0, ..Default::default() }.into(),
     })
 }
 
@@ -352,7 +358,7 @@ fn make_v1_orders_matched(
 ) -> OrdersMatchedEvent {
     OrdersMatchedEvent {
         id: format!("{}-{}", Hex::encode(tx_hash), ordinal),
-        timestamp: Some(Timestamp { seconds: block_ts as i64, nanos: 0 }),
+        timestamp: Timestamp { seconds: block_ts as i64, nanos: 0, ..Default::default() }.into(),
         maker_asset_id,
         taker_asset_id,
         maker_amount_filled,
@@ -412,7 +418,7 @@ where
 
                     events.push(OrdersMatchedEvent {
                         id: format!("{}-{}", Hex::encode(&trx.hash), log.ordinal),
-                        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
+                        timestamp: Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0, ..Default::default() }.into(),
                         maker_asset_id,
                         taker_asset_id,
                         maker_amount_filled: event.maker_amount_filled().to_string(),
@@ -434,7 +440,7 @@ where
         events,
         block_number: blk.number,
         block_hash: Hex::encode(&blk.hash),
-        timestamp: Some(Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0 }),
+        timestamp: Timestamp { seconds: blk.timestamp_seconds() as i64, nanos: 0, ..Default::default() }.into(),
     })
 }
 
@@ -513,7 +519,7 @@ pub fn store_markets(events: OrderFilledEvents, store: StoreSetProto<MarketOrder
             scaled_collateral_volume: scale_amount(&event.taker_amount_filled),
             average_trade_size: event.taker_amount_filled.clone(),
             total_fees: event.fee.clone(),
-            last_active_day: utils::timestamp_to_day(event.timestamp.as_ref().map(|t| t.seconds as u64).unwrap_or(0)),
+            last_active_day: utils::timestamp_to_day(event.timestamp.as_option().map(|t| t.seconds as u64).unwrap_or(0)),
             mid_price: event.price.clone(),
             spread: "0".to_string(),
             volume_24h: "0".to_string(),
