@@ -49,6 +49,12 @@ message OrderFilledEvent {
   uint32 side_raw = 18;         // v2 side enum: 0=BUY, 1=SELL
   string builder = 19;          // bytes32 builder code (v2 only)
   string metadata = 20;         // bytes32 metadata (v2 only)
+
+  // v1.0.0 additions
+  string exchange = 21;         // ctf_v1 | neg_risk_v1 | ctf_v2 | neg_risk_v2 | exchange_v3
+  uint32 log_index = 22;
+  string shares = 23;           // outcome tokens bought/sold by `maker` (net of v1 token fees)
+  string collateral = 24;       // collateral paid (buy, incl. v2 fee) / received (sell, net of fee)
 }
 
 message OrdersMatchedEvent {
@@ -67,6 +73,11 @@ message OrdersMatchedEvent {
   string taker_order_maker = 11;   // v2: takerOrderMaker (indexed)
   string token_id = 12;            // v2: single tokenId
   uint32 side_raw = 13;            // v2: side enum
+
+  // v1.0.0 additions
+  string exchange = 14;
+  string transaction_hash = 15;
+  uint32 log_index = 16;
 }
 
 // Enhanced market orderbook with more analytics
@@ -158,6 +169,42 @@ message GlobalOrderbookStats {
   string average_spread = 18;
   string platform_fee_revenue = 19;
   string maker_taker_ratio = 20;
+}
+
+// v1.0.0: FeeCharged (v1: receiver, tokenId, amount; v2/V3: receiver, amount)
+message FeeChargedEvent {
+  string id = 1;                 // tx_hash-log_index
+  string transaction_hash = 2;
+  uint32 log_index = 3;
+  string exchange = 4;
+  string receiver = 5;
+  string token_id = 6;           // v1 only
+  string amount = 7;
+  uint64 block_number = 8;
+  google.protobuf.Timestamp timestamp = 9;
+}
+
+// v1.0.0: market resolutions (CTF ConditionResolution, Protocol V2 ConditionResolved)
+message ResolutionEvent {
+  string id = 1;
+  string transaction_hash = 2;
+  uint32 log_index = 3;
+  string source = 4;             // ctf | binary_module | neg_risk_module
+  string condition_id = 5;
+  repeated string payouts = 6;
+  uint64 block_number = 7;
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+// v1.0.0: everything extracted by the single-pass map_events
+message OrderbookEvents {
+  repeated OrderFilledEvent fills = 1;
+  repeated OrdersMatchedEvent matches = 2;
+  repeated FeeChargedEvent fees = 3;
+  repeated ResolutionEvent resolutions = 4;
+  uint64 block_number = 5;
+  string block_hash = 6;
+  google.protobuf.Timestamp timestamp = 7;
 }
 
 // Collection messages for batch processing
