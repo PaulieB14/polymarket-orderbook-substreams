@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: polymarket_orderbook_substreams
-  version: v0.4.0
+  version: v0.5.0
   url: https://github.com/PaulieB14/polymarket-orderbook-substreams
   image: ./download.png
   doc: |
@@ -21,8 +21,7 @@ package:
 network: polygon
 
 imports:
-  database: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v3.0.0/substreams-sink-database-changes-v3.0.0.spkg
-  sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
+  database: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v5.0.0/substreams-sink-database-changes-v5.0.0.spkg
 
 protobuf:
   files:
