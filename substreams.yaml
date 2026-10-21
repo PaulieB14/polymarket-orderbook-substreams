@@ -1,27 +1,16 @@
 specVersion: v0.1.0
 package:
   name: polymarket_orderbook_substreams
-  version: v0.5.0
+  version: v1.0.0
   url: https://github.com/PaulieB14/polymarket-orderbook-substreams
   image: ./download.png
-  doc: |
-    # Polymarket Orderbook Substreams
-
-    Real-time orderbook event extraction for Polymarket prediction markets on Polygon.
-
-    Features:
-    - Order fill extraction from CTF Exchange and Neg Risk Exchange (v1 + v2)
-    - Orders matched event tracking across both v1 and v2 contracts
-    - Unified order flow stream spanning the 2026-04-28 v2 cutover
-    - Price calculation and explicit trade side from v2 `side` enum
-    - V2 builder attribution and metadata surfaced as columns
-
-    SQL schemas included for PostgreSQL and Clickhouse persistence.
+  description: "Polymarket orderbook flow on Polygon: fills, matches, fees and resolutions from CLOB v1, v2 and Protocol V2 (ExchangeV3), with per-market, per-trader and global aggregates for Postgres and ClickHouse."
 
 network: polygon
 
 imports:
   database: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v5.0.0/substreams-sink-database-changes-v5.0.0.spkg
+  ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.0.spkg
 
 protobuf:
   files:
@@ -38,195 +27,108 @@ binaries:
     file: ./target/wasm32-unknown-unknown/release/polymarket_orderbook_substreams.wasm
 
 modules:
-  # ============================================
-  # Event Extraction Modules (Layer 1)
-  # ============================================
-
-  - name: map_ctf_exchange_order_filled
+  - name: map_events
     kind: map
     initialBlock: 57000000
+    blockFilter:
+      module: ethcommon:index_events
+      query:
+        string: "evt_addr:0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e || evt_addr:0xc5d563a36ae78145c45a50134d48a1215220f80a || evt_addr:0xe111180000d2663c0091e4f400237545b87b996b || evt_addr:0xe2222d279d744050d28e00520010520000310f59 || evt_addr:0xe3333700ca9d93003f00f0f71f8515005f6c00aa || (evt_addr:0x4d97dcd97ec945f40cf65f87097ace5ea0476045 && evt_sig:0xb44d84d3289691f71497564b85d4233648d9dbae8cbdbb4329f301c3a0185894) || ((evt_addr:0x1000008dd9001b968442c1000017eae6e0da00ba || evt_addr:0x200000900045e3b6259600682756002200028933) && evt_sig:0xe560c1a2847d4cf2e66de11fe592605556989449f38cc3ab96e2e287daa68caa)"
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
-      type: proto:polymarket.orderbook.v1.OrderFilledEvents
+      type: proto:polymarket.orderbook.v1.OrderbookEvents
     doc: |
-      Extracts OrderFilled events from CTF Exchange (0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e).
-      Includes price calculation and trade side determination.
-
-  - name: map_neg_risk_exchange_order_filled
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrderFilledEvents
-    doc: |
-      Extracts OrderFilled events from Neg Risk Exchange (0xC5d563A36AE78145C45a50134d48A1215220f80a).
-      Handles negative risk markets with specialized processing.
-
-  - name: map_ctf_exchange_orders_matched
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
-    doc: Extracts OrdersMatched events from CTF Exchange.
-
-  - name: map_neg_risk_exchange_orders_matched
-    kind: map
-    initialBlock: 57000000
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
-    doc: Extracts OrdersMatched events from Neg Risk Exchange.
-
-  # ============================================
-  # V2 Event Extraction (deployed 2026-03-31, cutover 2026-04-28)
-  # ============================================
-
-  - name: map_ctf_exchange_v2_order_filled
-    kind: map
-    initialBlock: 84902353
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrderFilledEvents
-    doc: |
-      Extracts OrderFilled events from CTF Exchange V2 (0xE111180000d2663C0091e4f400237545B87B996B).
-      V2 events emit explicit side, single tokenId, plus builder/metadata fields.
-
-  - name: map_neg_risk_exchange_v2_order_filled
-    kind: map
-    initialBlock: 84902353
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrderFilledEvents
-    doc: Extracts OrderFilled events from Neg Risk CTF Exchange V2 (0xe2222d279d744050d28e00520010520000310F59).
-
-  - name: map_ctf_exchange_v2_orders_matched
-    kind: map
-    initialBlock: 84902353
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
-    doc: Extracts OrdersMatched events from CTF Exchange V2.
-
-  - name: map_neg_risk_exchange_v2_orders_matched
-    kind: map
-    initialBlock: 84902353
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-    output:
-      type: proto:polymarket.orderbook.v1.OrdersMatchedEvents
-    doc: Extracts OrdersMatched events from Neg Risk CTF Exchange V2.
-
-  # ============================================
-  # Combined Events Module (Layer 1.5)
-  # ============================================
+      Single pass (lazy block decode) over the five Polymarket exchanges: OrderFilled, OrdersMatched,
+      FeeCharged; plus CTF ConditionResolution and Protocol V2 ConditionResolved. Replaces the eight
+      per-exchange maps of v0.x.
 
   - name: map_all_order_fills
     kind: map
     initialBlock: 57000000
     inputs:
-      - map: map_ctf_exchange_order_filled
-      - map: map_neg_risk_exchange_order_filled
-      - map: map_ctf_exchange_v2_order_filled
-      - map: map_neg_risk_exchange_v2_order_filled
+      - map: map_events
     output:
       type: proto:polymarket.orderbook.v1.OrderFilledEvents
-    doc: |
-      Combines order fills from v1 and v2 CTF Exchange + Neg Risk into a single stream.
-      Use this module for unified order flow analysis spanning the v2 cutover.
+    doc: Fills only, in the v0.x OrderFilledEvents shape (now including ExchangeV3 and the new fields).
 
-  # ============================================
-  # Foundational Stores (Layer 2)
-  # ============================================
+  - name: store_totals
+    kind: store
+    initialBlock: 57000000
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_events
+    doc: "Counters: m:{token}:trades|buys|sells|volume|fees, t:{owner}:..., g:...|fee_revenue"
 
-  - name: store_markets
+  - name: store_last_price
     kind: store
     initialBlock: 57000000
     updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.MarketOrderbook
+    valueType: string
     inputs:
-      - map: map_all_order_fills
-    doc: Stores market-level statistics indexed by asset ID.
+      - map: map_events
+    doc: "{token_id} -> price of the latest match"
 
-  - name: store_traders
+  - name: store_first_trade
     kind: store
     initialBlock: 57000000
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.Account
+    updatePolicy: min
+    valueType: int64
     inputs:
-      - map: map_all_order_fills
-    doc: Stores trader-level statistics indexed by address.
+      - map: map_events
 
-  - name: store_global_stats
+  - name: store_last_trade
     kind: store
     initialBlock: 57000000
-    updatePolicy: set
-    valueType: proto:polymarket.orderbook.v1.GlobalOrderbookStats
+    updatePolicy: max
+    valueType: int64
     inputs:
-      - map: map_all_order_fills
-    doc: Stores global platform statistics.
-
-  # ============================================
-  # Analytics Outputs (Layer 3)
-  # ============================================
+      - map: map_events
 
   - name: map_market_orderbooks
     kind: map
     initialBlock: 57000000
     inputs:
-      - map: map_all_order_fills
-      - store: store_markets
-        mode: deltas
+      - map: map_events
+      - store: store_totals
+      - store: store_last_price
     output:
       type: proto:polymarket.orderbook.v1.MarketOrderbooks
-    doc: Emits market orderbook updates when markets change.
+    doc: Cumulative per-token stats for every token traded in the block.
 
   - name: map_trader_accounts
     kind: map
     initialBlock: 57000000
     inputs:
-      - map: map_all_order_fills
-      - store: store_traders
-        mode: deltas
+      - map: map_events
+      - store: store_totals
+      - store: store_first_trade
+      - store: store_last_trade
     output:
       type: proto:polymarket.orderbook.v1.Accounts
-    doc: Emits trader account updates for leaderboards.
+    doc: Cumulative per-order-owner stats for every owner that traded in the block.
 
   - name: map_global_orderbook_stats
     kind: map
     initialBlock: 57000000
     inputs:
-      - map: map_all_order_fills
-      - store: store_global_stats
-        mode: deltas
+      - map: map_events
+      - store: store_totals
     output:
       type: proto:polymarket.orderbook.v1.GlobalOrderbookStats
-    doc: Emits global platform statistics.
-
-  # ============================================
-  # Database Sink Output (Layer 4)
-  # ============================================
 
   - name: db_out
     kind: map
     initialBlock: 57000000
     inputs:
-      - map: map_all_order_fills
+      - map: map_events
       - map: map_market_orderbooks
       - map: map_trader_accounts
       - map: map_global_orderbook_stats
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
-    doc: |
-      Converts all analytics outputs into DatabaseChanges for PostgreSQL/ClickHouse.
-      Use with substreams-sink-sql to persist data.
+    doc: Inserts order_fills, orders_matched, fees, resolutions; upserts market_orderbooks, trader_accounts, global_stats (absolute values, works on Postgres and ClickHouse).
 
 sink:
   module: db_out

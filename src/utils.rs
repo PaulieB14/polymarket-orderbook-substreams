@@ -1,84 +1,25 @@
-use bigdecimal::BigDecimal;
-use std::str::FromStr;
 use substreams::scalar::BigInt;
 
-/// Calculate price from maker and taker amounts
-pub fn calculate_price(maker_amount: &BigInt, taker_amount: &BigInt) -> BigDecimal {
-    if taker_amount.to_string() == "0" {
-        return BigDecimal::from_str("0").unwrap();
-    }
-    
-    let maker_decimal = BigDecimal::from_str(&maker_amount.to_string()).unwrap_or_default();
-    let taker_decimal = BigDecimal::from_str(&taker_amount.to_string()).unwrap_or_default();
-    
-    if taker_decimal == BigDecimal::from_str("0").unwrap() {
-        BigDecimal::from_str("0").unwrap()
-    } else {
-        maker_decimal / taker_decimal
-    }
+/// base units (6 decimals) -> decimal string
+pub fn scale6(v: &BigInt) -> String {
+    let s = BigInt::from(1_000_000u64);
+    let int = v.clone() / s.clone();
+    let frac = (v.clone() - int.clone() * s).to_u64();
+    format!("{}.{:06}", int, frac)
 }
 
-/// Determine trade side based on asset IDs
-pub fn determine_trade_side(
-    maker_asset_id: &BigInt,
-    taker_asset_id: &BigInt,
-    _maker_amount: &BigInt,
-    _taker_amount: &BigInt,
-) -> String {
-    // For very large BigInt values, we'll use string-based logic
-    let maker_id_str = maker_asset_id.to_string();
-    let taker_id_str = taker_asset_id.to_string();
-    
-    // Check if the last digit is even (0,2,4,6,8) or odd (1,3,5,7,9)
-    let maker_is_even = maker_id_str.chars().last().map_or(false, |c| matches!(c, '0'|'2'|'4'|'6'|'8'));
-    let taker_is_even = taker_id_str.chars().last().map_or(false, |c| matches!(c, '0'|'2'|'4'|'6'|'8'));
-    
-    // USDC collateral typically has even asset IDs (divisible by 2)
-    // Outcome tokens typically have odd asset IDs
-    match (maker_is_even, taker_is_even) {
-        (true, false) => "buy".to_string(),   // Maker provides USDC, gets outcome token
-        (false, true) => "sell".to_string(),  // Maker provides outcome token, gets USDC
-        _ => "unknown".to_string(),
-    }
-}
-
-/// Generate unique ID from transaction hash and order hash
-pub fn generate_order_id(tx_hash: &str, order_hash: &str) -> String {
-    format!("{}-{}", tx_hash, order_hash)
-}
-
-/// Extract condition ID from asset ID (Polymarket specific logic)
-pub fn extract_condition_id(asset_id: &BigInt) -> String {
-    format!("condition_{}", asset_id.to_string())
-}
-
-/// Extract condition ID from asset ID string
-pub fn extract_condition_id_from_str(asset_id: &str) -> String {
-    format!("condition_{}", asset_id)
-}
-
-/// Format timestamp for day calculation
-pub fn timestamp_to_day(timestamp: u64) -> u64 {
-    timestamp / 86400 // Convert seconds to days
-}
-
-/// Pick the non-zero asset ID as the token ID for a v1 OrderFilled event.
-/// V1 always emits collateral (0) on one side and the conditional token ID on the other.
-pub fn v1_token_id(maker_asset_id: &BigInt, taker_asset_id: &BigInt) -> String {
-    if taker_asset_id.to_string() == "0" {
-        maker_asset_id.to_string()
-    } else {
-        taker_asset_id.to_string()
-    }
-}
-
-/// Map a v2 (side, token_id) into v1-compatible (maker_asset_id, taker_asset_id).
-/// V2 BUY (side=0): maker pays collateral, receives tokens → maker_asset_id="0", taker_asset_id=token_id
-/// V2 SELL (side=1): maker pays tokens, receives collateral → maker_asset_id=token_id, taker_asset_id="0"
-pub fn v2_assets_from_side(side: u8, token_id: &str) -> (String, String) {
-    match side {
-        0 => ("0".to_string(), token_id.to_string()),
-        1 => (token_id.to_string(), "0".to_string()),
-        _ => (token_id.to_string(), "0".to_string()),
-    }
+pub fn unix_to_timestamp(secs: i64) -> String {
+    let days = secs.div_euclid(86400);
+    let tod = secs.rem_euclid(86400);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, m, d, tod / 3600, (tod % 3600) / 60, tod % 60)
 }

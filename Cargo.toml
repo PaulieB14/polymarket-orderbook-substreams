@@ -1,6 +1,6 @@
 [package]
 name = "polymarket-orderbook-substreams"
-version = "0.5.0"
+version = "1.0.0"
 edition = "2021"
 description = "Real-time orderbook analytics for Polymarket prediction markets"
 repository = "https://github.com/PaulieB14/polymarket-orderbook-substreams"
@@ -26,6 +26,8 @@ substreams-database-change = "5.0.0"
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2", features = ["custom"] }
 
-[build-dependencies]
-substreams-ethereum = "0.12.0"
-anyhow = "1.0"
+
+[profile.release]
+lto = true
+opt-level = 's'
+strip = "debuginfo"
